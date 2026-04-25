@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-tag">
+    <span class="live-dot"></span>
+    Live AI Intelligence Hub
+  </div>
+  <h1>The AI Feed You<br>Actually Need</h1>
+  <p>Aggregating research, news, and insights from the <strong>top 50 AI sources</strong> worldwide — updated every 2 hours.</p>
+
+  <div class="hero-stats">
+    <div class="hero-stat">
+      <span class="num count-up" data-target="{{ stats.total }}">{{ stats.total }}</span>
+      <span class="label">Articles Indexed</span>
+    </div>
+    <div class="hero-divider"></div>
+    <div class="hero-stat">
+      <span class="num">50</span>
+      <span class="label">AI Sources</span>
+    </div>
+    <div class="hero-divider"></div>
+    <div class="hero-stat">
+      <span class="num">{{ stats.by_category | length }}</span>
+      <span class="label">Categories</span>
+    </div>
+    <div class="hero-divider"></div>
+    <div class="hero-stat">
+      <span class="num" id="refresh-countdown" data-seconds="7200">02:00:00</span>
+      <span class="label">Next Update</span>
+    </div>
+  </div>
+</section>
+
+<!-- Filter Bar -->
+<div class="filter-bar">
+  <div class="filter-inner">
+    <span class="filter-label">Filter:</span>
+    <a href="/" class="filter-btn {{ 'active' if not selected_category }}">All</a>
+    {% for cat in categories %}
+      <a href="/?category={{ cat | urlencode }}{% if query %}&q={{ query | urlencode }}{% endif %}"
+         class="filter-btn {{ 'active' if selected_category == cat }}">{{ cat }}</a>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Main Content -->
+<div class="main-layout">
+
+  <!-- Articles -->
+  <main>
+    <div class="articles-header">
+      <span class="articles-title">
+        {% if query %}
+          Results for "{{ query }}"
+        {% elif selected_category %}
+          {{ selected_category }}
+        {% elif selected_source %}
+          {{ selected_source }}
+        {% else %}
+          Latest Articles
+        {% endif %}
+      </span>
+      <span class="articles-count">{{ total_articles }} articles</span>
+    </div>
+
+    {% if articles %}
+    <div class="articles-grid">
+      {% for article in articles %}
+      {% set is_featured = loop.first and page == 1 and not query and not selected_category %}
+      <article class="card {{ 'card-featured' if is_featured }}">
+
+        {% if article.image_url %}
+          <img class="{{ 'card-image' }}"
+               src="{{ article.image_url }}"
+               alt="{{ article.title }}"
+               loading="lazy"
+               onerror="this.parentNode.querySelector('.card-image-placeholder') && (this.style.display='none'); this.onerror=null;" />
+        {% else %}
+          <div class="card-image-placeholder">{{ article.logo }}</div>
+        {% endif %}
+
+        <div class="card-body">
+          <div class="card-source">
+            <span class="card-badge badge-{{ article.category }}">{{ article.logo }} {{ article.category }}</span>
+            <span class="card-source-name">{{ article.source_name }}</span>
+          </div>
+
+          <h2 class="card-title {{ 'text-xl' if is_featured }}">
+            <a href="/article/{{ article.uid }}">{{ article.title }}</a>
+          </h2>
+
+          {% if article.summary %}
+          <p class="card-summary">{{ article.summary | truncate_words(is_featured and 50 or 25) }}</p>
+          {% endif %}
+
+          <div class="card-footer">
+            <span class="card-time">🕐 {{ article.published | timeago }}</span>
+            <div class="card-actions">
+              <a href="/article/{{ article.uid }}" class="btn-sm btn-outline">Details</a>
+              <a href="{{ article.url }}" target="_blank" rel="noopener" class="btn-sm btn-primary">Read →</a>
+            </div>
+          </div>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+
+    <!-- Pagination -->
+    {% if total_pages > 1 %}
+    <nav class="pagination">
+      <a href="?page={{ page - 1 }}{% if selected_category %}&category={{ selected_category }}{% endif %}{% if query %}&q={{ query }}{% endif %}"
+         class="page-btn {{ 'disabled' if page == 1 }}">‹</a>
+
+      {% for p in range([1, page - 2] | max, [total_pages + 1, page + 3] | min) %}
+        <a href="?page={{ p }}{% if selected_category %}&category={{ selected_category }}{% endif %}{% if query %}&q={{ query }}{% endif %}"
+           class="page-btn {{ 'active' if p == page }}">{{ p }}</a>
+      {% endfor %}
+
+      <a href="?page={{ page + 1 }}{% if selected_category %}&category={{ selected_category }}{% endif %}{% if query %}&q={{ query }}{% endif %}"
+         class="page-btn {{ 'disabled' if page == total_pages }}">›</a>
+    </nav>
+    {% endif %}
+
+    {% else %}
+    <div class="empty-state">
+      <div class="icon">🔍</div>
+      <h2>No articles found</h2>
+      <p>Try a different search or category — or wait for the next crawl.</p>
+    </div>
+    {% endif %}
+  </main>
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+
+    <!-- Stats widget -->
+    <div class="widget">
+      <div class="widget-header">📊 Categories</div>
+      <div class="widget-body">
+        <div class="cat-list">
+          {% set max_count = stats.by_category.values() | max if stats.by_category else 1 %}
+          {% for cat, count in stats.by_category.items() %}
+          <a href="/?category={{ cat | urlencode }}" style="text-decoration:none; color:inherit;">
+            <div class="cat-item">
+              <div class="cat-item-left">
+                <span class="cat-name">{{ cat }}</span>
+              </div>
+              <div class="cat-bar-wrap">
+                <div class="cat-bar" style="width: {{ (count / max_count * 100) | int }}%"></div>
+              </div>
+              <span class="cat-count">{{ count }}</span>
+            </div>
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Sources widget -->
+    <div class="widget">
+      <div class="widget-header">🌐 Sources</div>
+      <div class="widget-body" style="padding: 8px 12px;">
+        <div class="source-list">
+          {% for feed in feeds %}
+          <a href="/?source={{ feed.name | urlencode }}"
+             class="source-item {{ 'active' if selected_source == feed.name }}">
+            <span class="logo">{{ feed.logo }}</span>
+            <span>{{ feed.name }}</span>
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Refresh widget -->
+    <div class="widget">
+      <div class="widget-header">⚡ Live Feed</div>
+      <div class="widget-body" style="text-align:center; display:flex; flex-direction:column; gap:12px;">
+        <div style="font-size:.82rem; color:var(--muted2);">
+          <span class="live-dot"></span>
+          Auto-refreshes every 2 hours
+        </div>
+        <div style="font-size:.75rem; color:var(--muted);">
+          Last fetch: {{ stats.last_fetch | timeago if stats.last_fetch else "Never" }}
+        </div>
+        <button id="refresh-btn" class="btn-sm btn-primary" style="width:100%; justify-content:center;">
+          🔄 Refresh Now
+        </button>
+      </div>
+    </div>
+
+  </aside>
+</div>
+
+{% endblock %}

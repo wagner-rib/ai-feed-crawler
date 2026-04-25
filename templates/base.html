@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}AIFeed — Top AI News & Research Aggregator{% endblock %}</title>
+  <meta name="description" content="{% block description %}The best aggregator of AI news, research papers, and insights from the top 50 AI sources worldwide.{% endblock %}" />
+  <meta name="keywords" content="AI news, artificial intelligence, machine learning, deep learning, research, OpenAI, Google DeepMind, Anthropic" />
+  <meta property="og:title" content="{% block og_title %}AIFeed — Top AI Intelligence Hub{% endblock %}" />
+  <meta property="og:description" content="AI news from the top 50 sources — research, tools, labs & more." />
+  <meta property="og:type" content="website" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧠</text></svg>" />
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+<nav class="navbar">
+  <div class="navbar-inner">
+    <a href="/" class="navbar-brand">
+      <span class="icon">🧠</span>
+      AIFeed
+    </a>
+
+    <div class="navbar-links">
+      <a href="/" class="{{ 'active' if request.path == '/' }}">Latest</a>
+      <a href="/sources" class="{{ 'active' if request.path == '/sources' }}">Sources</a>
+    </div>
+
+    <form class="navbar-search" action="/" method="get">
+      <span class="search-icon">🔍</span>
+      <input type="text" name="q" placeholder="Search AI news…"
+             value="{{ request.args.get('q', '') }}" autocomplete="off" />
+    </form>
+  </div>
+</nav>
+
+{% block content %}{% endblock %}
+
+<footer>
+  <div class="footer-inner">
+    <div class="footer-brand">🧠 AIFeed</div>
+    <p class="footer-text">
+      Aggregating the top 50 AI sources in real-time. All content belongs to original publishers.
+      <span class="live-dot"></span> Updated every 2 hours.
+    </p>
+  </div>
+</footer>
+
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

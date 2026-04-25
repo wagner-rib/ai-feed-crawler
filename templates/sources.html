@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}AI Sources — AIFeed{% endblock %}
+
+{% block content %}
+
+<div class="article-hero">
+  <div class="article-hero-inner">
+    <div class="hero-tag">📡 Data Sources</div>
+    <h1 style="margin-bottom:12px;">Top 50 AI Sources</h1>
+    <p style="color:var(--muted2);">
+      Every article on AIFeed is aggregated from these authoritative AI publishers,
+      research institutions, and newsletters.
+    </p>
+  </div>
+</div>
+
+<!-- Category Tabs -->
+<div class="filter-bar" style="position:relative; top:0;">
+  <div class="filter-inner">
+    <span class="filter-label">Category:</span>
+    <a href="/sources" class="filter-btn {{ 'active' if not request.args.get('cat') }}">All</a>
+    {% for cat in categories %}
+    <a href="/sources?cat={{ cat | urlencode }}"
+       class="filter-btn {{ 'active' if request.args.get('cat') == cat }}">{{ cat }}</a>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="sources-grid">
+  {% set cat_filter = request.args.get('cat', '') %}
+  {% for feed in feeds %}
+    {% if not cat_filter or feed.category == cat_filter %}
+    <div class="source-card">
+      <div class="source-card-header">
+        <span class="source-card-logo">{{ feed.logo }}</span>
+        <div>
+          <div class="source-card-name">{{ feed.name }}</div>
+          <div class="source-card-cat">
+            <span class="card-badge badge-{{ feed.category }}">{{ feed.category }}</span>
+          </div>
+        </div>
+      </div>
+      <a href="{{ feed.website_url }}" target="_blank" rel="noopener" class="source-card-url">
+        {{ feed.website_url | replace("https://","") | truncate(40) }}
+      </a>
+      <div style="display:flex; gap:8px; margin-top:4px;">
+        <a href="/?source={{ feed.name | urlencode }}" class="btn-sm btn-primary" style="flex:1; justify-content:center;">
+          View Articles
+        </a>
+        <a href="{{ feed.website_url }}" target="_blank" rel="noopener" class="btn-sm btn-outline">
+          ↗
+        </a>
+      </div>
+    </div>
+    {% endif %}
+  {% endfor %}
+</div>
+
+{% endblock %}

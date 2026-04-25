@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}{{ article.title }} — AIFeed{% endblock %}
+{% block description %}{{ article.summary | truncate(160) }}{% endblock %}
+
+{% block content %}
+
+<div class="article-hero">
+  <div class="article-hero-inner">
+    <div class="article-meta">
+      <span class="card-badge badge-{{ article.category }}">{{ article.logo }} {{ article.category }}</span>
+      <a href="/?source={{ article.source_name | urlencode }}" style="color:var(--muted2); font-size:.85rem;">
+        {{ article.source_name }}
+      </a>
+      <span style="color:var(--muted); font-size:.82rem;">🕐 {{ article.published | timeago }}</span>
+    </div>
+
+    <h1>{{ article.title }}</h1>
+
+    <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+      <a href="{{ article.url }}" target="_blank" rel="noopener" class="btn-lg">
+        Read on {{ article.source_name }} →
+      </a>
+      <a href="{{ article.source_url }}" target="_blank" rel="noopener"
+         style="font-size:.82rem; color:var(--muted2);">
+        Visit source ↗
+      </a>
+    </div>
+
+    {% if article.image_url %}
+    <img src="{{ article.image_url }}" alt="{{ article.title }}" class="article-hero-image" loading="eager" />
+    {% endif %}
+  </div>
+</div>
+
+<div class="article-layout">
+  <div>
+    {% if article.summary %}
+    <div class="article-body">
+      <p>{{ article.summary }}</p>
+    </div>
+    {% endif %}
+
+    <div class="article-cta">
+      <p style="font-size:1rem; font-weight:600;">Read the full article on {{ article.source_name }}</p>
+      <p style="font-size:.85rem; color:var(--muted2); margin-bottom:16px;">
+        This is a summary. The full content is available at the original source.
+      </p>
+      <a href="{{ article.url }}" target="_blank" rel="noopener" class="btn-lg">
+        Open Original Article →
+      </a>
+    </div>
+
+    <!-- Related articles -->
+    {% if related %}
+    <div style="margin-top: 40px;">
+      <h2 style="font-size:1.1rem; font-weight:700; margin-bottom:20px; color:var(--muted2);">
+        More from {{ article.category }}
+      </h2>
+      <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px,1fr)); gap:16px;">
+        {% for rel in related %}
+        <article class="card">
+          {% if rel.image_url %}
+          <img class="card-image" src="{{ rel.image_url }}" alt="{{ rel.title }}" loading="lazy"
+               style="height:140px;" onerror="this.style.display='none';" />
+          {% else %}
+          <div class="card-image-placeholder" style="height:100px; font-size:2rem;">{{ rel.logo }}</div>
+          {% endif %}
+          <div class="card-body">
+            <div class="card-source">
+              <span class="card-source-name">{{ rel.source_name }}</span>
+            </div>
+            <h3 class="card-title" style="font-size:.9rem;">
+              <a href="/article/{{ rel.uid }}">{{ rel.title | truncate(80) }}</a>
+            </h3>
+            <div class="card-footer">
+              <span class="card-time">{{ rel.published | timeago }}</span>
+              <a href="/article/{{ rel.uid }}" class="btn-sm btn-outline">View</a>
+            </div>
+          </div>
+        </article>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="widget">
+      <div class="widget-header">📌 Source Info</div>
+      <div class="widget-body" style="display:flex; flex-direction:column; gap:12px;">
+        <div style="font-size:2rem; text-align:center;">{{ article.logo }}</div>
+        <div style="font-weight:700; text-align:center;">{{ article.source_name }}</div>
+        <span class="card-badge badge-{{ article.category }}" style="align-self:center;">{{ article.category }}</span>
+        <a href="{{ article.source_url }}" target="_blank" rel="noopener"
+           class="btn-sm btn-outline" style="justify-content:center;">Visit Website ↗</a>
+        <a href="/?source={{ article.source_name | urlencode }}"
+           class="btn-sm btn-primary" style="justify-content:center;">More from this source</a>
+      </div>
+    </div>
+
+    <div class="widget">
+      <div class="widget-header">🔗 Article</div>
+      <div class="widget-body" style="display:flex; flex-direction:column; gap:8px;">
+        <div style="font-size:.8rem; color:var(--muted2);">Published</div>
+        <div style="font-size:.85rem;">{{ article.published | timeago }}</div>
+        <div style="font-size:.8rem; color:var(--muted2); margin-top:8px;">Views</div>
+        <div style="font-size:.85rem;">{{ article.views }}</div>
+        <a href="{{ article.url }}" target="_blank" rel="noopener"
+           class="btn-sm btn-primary" style="justify-content:center; margin-top:8px;">
+          Read Full Article →
+        </a>
+      </div>
+    </div>
+
+    <div style="text-align:center;">
+      <a href="/" class="btn-sm btn-outline">← Back to Feed</a>
+    </div>
+  </aside>
+</div>
+
+{% endblock %}
