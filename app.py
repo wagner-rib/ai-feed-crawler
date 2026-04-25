@@ -14,7 +14,7 @@ from flask import (
 from apscheduler.schedulers.background import BackgroundScheduler
 import humanize
 
-from crawler import init_db, crawl_all, get_stats, DB_PATH
+from crawler import init_db, crawl_all, get_stats, DB_PATH, backfill_slugs
 from feeds_config import AI_FEEDS, CATEGORIES
 from ai_processor import init_db_v2, process_batch
 
@@ -129,6 +129,14 @@ def index():
         "SELECT DISTINCT source_name FROM articles ORDER BY source_name"
     ).fetchall()
 
+    def _page_url(p):
+        args = dict(request.args)
+        args["page"] = p
+        return request.path + "?" + "&".join(f"{k}={v}" for k, v in args.items())
+
+    prev_url = _page_url(page - 1) if page > 1 else None
+    next_url = _page_url(page + 1) if page < total_pages else None
+
     return render_template(
         "index.html",
         articles=articles,
@@ -142,20 +150,26 @@ def index():
         total_articles=total,
         stats=stats,
         feeds=AI_FEEDS,
+        prev_url=prev_url,
+        next_url=next_url,
     )
 
 
-@app.route("/article/<uid>")
-def article(uid):
+@app.route("/article/<slug>")
+def article(slug):
     db = get_db()
-    art = db.execute("SELECT * FROM articles WHERE uid = ?", (uid,)).fetchone()
+    art = db.execute("SELECT * FROM articles WHERE slug = ?", (slug,)).fetchone()
     if art is None:
+        # Backwards-compat: old UID-based URLs get a 301 to the slug URL
+        art = db.execute("SELECT * FROM articles WHERE uid = ?", (slug,)).fetchone()
+        if art is not None:
+            dest = art["slug"] or art["uid"]
+            return redirect(f"/article/{dest}", 301)
         return render_template("404.html"), 404
 
-    db.execute("UPDATE articles SET views = views + 1 WHERE uid = ?", (uid,))
+    db.execute("UPDATE articles SET views = views + 1 WHERE slug = ?", (slug,))
     db.commit()
 
-    # Related: same tags or same category
     tags = []
     if art["tags"]:
         try:
@@ -167,10 +181,11 @@ def article(uid):
         """SELECT * FROM articles
            WHERE category = ? AND uid != ?
            ORDER BY published DESC LIMIT 6""",
-        (art["category"], uid),
+        (art["category"], art["uid"]),
     ).fetchall()
 
-    canonical = f"{SITE_URL}/article/{uid}"
+    art_slug = art["slug"] or art["uid"]
+    canonical = f"{SITE_URL}/article/{art_slug}"
     return render_template(
         "article.html",
         article=art,
@@ -219,13 +234,34 @@ def sources():
 # Routes — SEO
 # ---------------------------------------------------------------------------
 
+@app.route("/sitemap_index.xml")
+def sitemap_index():
+    now = datetime.now(timezone.utc).isoformat()[:10]
+    xml = render_template("sitemap_index.xml", site_url=SITE_URL, now=now)
+    return Response(xml, mimetype="application/xml")
+
+
 @app.route("/sitemap.xml")
 def sitemap():
     db = get_db()
     articles = db.execute(
-        "SELECT uid, published FROM articles ORDER BY published DESC LIMIT 5000"
+        "SELECT uid, slug, published FROM articles ORDER BY published DESC LIMIT 5000"
     ).fetchall()
     xml = render_template("sitemap.xml", articles=articles, site_url=SITE_URL)
+    return Response(xml, mimetype="application/xml")
+
+
+@app.route("/sitemap-news.xml")
+def sitemap_news():
+    from datetime import timedelta
+    db = get_db()
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=2)).isoformat()
+    articles = db.execute(
+        """SELECT uid, slug, title, source_name, published FROM articles
+           WHERE published >= ? ORDER BY published DESC LIMIT 1000""",
+        (cutoff,),
+    ).fetchall()
+    xml = render_template("sitemap_news.xml", articles=articles, site_url=SITE_URL)
     return Response(xml, mimetype="application/xml")
 
 
@@ -235,7 +271,9 @@ def robots():
 Allow: /
 Disallow: /api/
 
+Sitemap: {SITE_URL}/sitemap_index.xml
 Sitemap: {SITE_URL}/sitemap.xml
+Sitemap: {SITE_URL}/sitemap-news.xml
 """
     return Response(txt, mimetype="text/plain")
 
@@ -311,6 +349,7 @@ import os as _os
 
 init_db()
 init_db_v2()
+backfill_slugs()
 
 if not _os.environ.get("WERKZEUG_RUN_MAIN"):
     start_scheduler()

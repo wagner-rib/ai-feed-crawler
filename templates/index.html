@@ -1,5 +1,10 @@
 {% extends "base.html" %}
 
+{% block pagination_links %}
+{% if prev_url %}<link rel="prev" href="{{ site_url }}{{ prev_url }}" />{% endif %}
+{% if next_url %}<link rel="next" href="{{ site_url }}{{ next_url }}" />{% endif %}
+{% endblock %}
+
 {% block content %}
 
 <!-- Hero -->
@@ -97,7 +102,7 @@
           </div>
 
           <h2 class="card-title" itemprop="headline">
-            <a href="/article/{{ article.uid }}" itemprop="url">{{ article.title }}</a>
+            <a href="/article/{{ article.slug or article.uid }}" itemprop="url">{{ article.title }}</a>
           </h2>
 
           {% set display_text = article.ai_digest or article.summary %}
@@ -124,7 +129,7 @@
           <div class="card-footer">
             <span class="card-time">🕐 {{ article.published | timeago }}</span>
             <div class="card-actions">
-              <a href="/article/{{ article.uid }}" class="btn-sm btn-primary">Read →</a>
+              <a href="/article/{{ article.slug or article.uid }}" class="btn-sm btn-primary">Read →</a>
             </div>
           </div>
         </div>

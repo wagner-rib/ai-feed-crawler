@@ -15,27 +15,58 @@
 
 {% block structured_data %}
 <script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "Article",
-  "headline": {{ article.title | tojson }},
-  "description": {{ (article.ai_digest or article.summary or '') | truncate(300) | tojson }},
-  "image": {{ (article.image_url or '') | tojson }},
-  "datePublished": {{ article.published | tojson }},
-  "dateModified": {{ article.fetched_at | tojson }},
-  "author": {
-    "@type": "{{ 'Person' if article.author else 'Organization' }}",
-    "name": {{ (article.author or article.source_name) | tojson }}
+[
+  {
+    "@context": "https://schema.org",
+    "@type": "NewsArticle",
+    "headline": {{ article.title | tojson }},
+    "description": {{ (article.ai_digest or article.summary or '') | truncate(300) | tojson }},
+    "image": {{ (article.image_url or (site_url + '/static/img/og-default.png')) | tojson }},
+    "datePublished": {{ article.published | tojson }},
+    "dateModified": {{ article.fetched_at | tojson }},
+    "author": {
+      "@type": "{{ 'Person' if article.author else 'Organization' }}",
+      "name": {{ (article.author or article.source_name) | tojson }}
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "AIFeed",
+      "url": {{ site_url | tojson }},
+      "logo": {
+        "@type": "ImageObject",
+        "url": {{ (site_url + '/static/img/og-default.png') | tojson }}
+      }
+    },
+    "mainEntityOfPage": {{ canonical | tojson }},
+    "keywords": {{ tags | join(', ') | tojson }},
+    "articleSection": {{ article.category | tojson }},
+    "isAccessibleForFree": true
   },
-  "publisher": {
-    "@type": "Organization",
-    "name": "AIFeed",
-    "url": {{ site_url | tojson }}
-  },
-  "mainEntityOfPage": {{ canonical | tojson }},
-  "keywords": {{ tags | join(', ') | tojson }},
-  "articleSection": {{ article.category | tojson }}
-}
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {
+        "@type": "ListItem",
+        "position": 1,
+        "name": "Home",
+        "item": {{ site_url | tojson }}
+      },
+      {
+        "@type": "ListItem",
+        "position": 2,
+        "name": {{ article.category | tojson }},
+        "item": {{ (site_url + '/?category=' + article.category) | tojson }}
+      },
+      {
+        "@type": "ListItem",
+        "position": 3,
+        "name": {{ article.title | tojson }},
+        "item": {{ canonical | tojson }}
+      }
+    ]
+  }
+]
 </script>
 {% endblock %}
 
@@ -148,11 +179,11 @@
           <div class="card-body">
             <span class="card-source-name" style="font-size:.75rem;">{{ rel.source_name }}</span>
             <h3 class="card-title" style="font-size:.88rem;">
-              <a href="/article/{{ rel.uid }}">{{ rel.title | truncate(80) }}</a>
+              <a href="/article/{{ rel.slug or rel.uid }}">{{ rel.title | truncate(80) }}</a>
             </h3>
             <div class="card-footer">
               <span class="card-time">{{ rel.published | timeago }}</span>
-              <a href="/article/{{ rel.uid }}" class="btn-sm btn-outline">Read</a>
+              <a href="/article/{{ rel.slug or rel.uid }}" class="btn-sm btn-outline">Read</a>
             </div>
           </div>
         </article>

@@ -12,6 +12,7 @@ import feedparser
 import requests
 from bs4 import BeautifulSoup
 from dateutil import parser as dateparser
+from slugify import slugify
 
 from feeds_config import AI_FEEDS
 
@@ -42,6 +43,11 @@ def _is_public_url(url: str) -> bool:
     return not any(pat in path for pat in BLOCKED_PATH_PATTERNS)
 
 
+def make_slug(title: str, uid: str) -> str:
+    base = slugify(title, max_length=70, word_boundary=True)
+    return f"{base}-{uid[:6]}" if base else uid
+
+
 def get_db():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
@@ -55,6 +61,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS articles (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
                 uid         TEXT    UNIQUE NOT NULL,
+                slug        TEXT,
                 title       TEXT    NOT NULL,
                 url         TEXT    NOT NULL,
                 summary     TEXT,
@@ -71,7 +78,33 @@ def init_db():
             CREATE INDEX IF NOT EXISTS idx_published ON articles(published DESC);
             CREATE INDEX IF NOT EXISTS idx_source    ON articles(source_name);
         """)
+        # Migration: add slug column to existing databases
+        try:
+            conn.execute("ALTER TABLE articles ADD COLUMN slug TEXT")
+        except Exception:
+            pass
+        try:
+            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_slug ON articles(slug)")
+        except Exception:
+            pass
     log.info("Database initialised at %s", DB_PATH)
+
+
+def backfill_slugs():
+    """Generate slugs for articles that don't have one yet."""
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT uid, title FROM articles WHERE slug IS NULL OR slug = ''"
+        ).fetchall()
+        for row in rows:
+            slug = make_slug(row["title"], row["uid"])
+            try:
+                conn.execute("UPDATE articles SET slug = ? WHERE uid = ?", (slug, row["uid"]))
+            except Exception:
+                conn.execute("UPDATE articles SET slug = ? WHERE uid = ?", (row["uid"], row["uid"]))
+        if rows:
+            conn.commit()
+            log.info("Backfilled slugs for %d articles", len(rows))
 
 
 def _uid(url: str) -> str:
@@ -156,6 +189,7 @@ def crawl_feed(feed_cfg: dict) -> int:
             title = _clean_html(entry.get("title", "")).strip()
             if not title:
                 continue
+            slug = make_slug(title, uid)
             summary_raw = (
                 entry.get("summary")
                 or entry.get("content", [{}])[0].get("value", "")
@@ -169,13 +203,13 @@ def crawl_feed(feed_cfg: dict) -> int:
                 conn.execute(
                     """
                     INSERT OR IGNORE INTO articles
-                        (uid, title, url, summary, image_url,
+                        (uid, slug, title, url, summary, image_url,
                          source_name, source_url, category, logo,
                          published, fetched_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
                     """,
                     (
-                        uid, title, link, summary, image_url,
+                        uid, slug, title, link, summary, image_url,
                         feed_cfg["name"], feed_cfg["website_url"],
                         feed_cfg["category"], feed_cfg.get("logo", "📰"),
                         published, datetime.now(timezone.utc).isoformat(),

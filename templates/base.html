@@ -26,18 +26,29 @@
 
   {% block structured_data %}
   <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "WebSite",
-    "name": "AIFeed",
-    "url": "{{ site_url }}",
-    "description": "The premier AI news aggregator covering the top 50 AI sources worldwide.",
-    "potentialAction": {
-      "@type": "SearchAction",
-      "target": "{{ site_url }}/?q={search_term_string}",
-      "query-input": "required name=search_term_string"
+  [
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "AIFeed",
+      "url": "{{ site_url }}",
+      "description": "The premier AI news aggregator covering the top 50 AI sources worldwide.",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": "{{ site_url }}/?q={search_term_string}",
+        "query-input": "required name=search_term_string"
+      }
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "AIFeed",
+      "url": "{{ site_url }}",
+      "logo": "{{ site_url }}/static/img/og-default.png",
+      "description": "AI news aggregator — top 50 AI sources, updated every 2 hours.",
+      "sameAs": []
     }
-  }
+  ]
   </script>
   {% endblock %}
 
@@ -47,6 +58,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧠</text></svg>" />
   <link rel="alternate" type="application/rss+xml" title="AIFeed RSS" href="{{ site_url }}/sitemap.xml" />
+  {% block pagination_links %}{% endblock %}
   {% block extra_head %}{% endblock %}
 </head>
 <body>

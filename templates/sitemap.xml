@@ -12,7 +12,7 @@
   </url>
   {% for article in articles %}
   <url>
-    <loc>{{ site_url }}/article/{{ article.uid }}</loc>
+    <loc>{{ site_url }}/article/{{ article.slug or article.uid }}</loc>
     <lastmod>{{ article.published[:10] }}</lastmod>
     <changefreq>never</changefreq>
     <priority>0.8</priority>
