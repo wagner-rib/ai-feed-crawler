@@ -2,7 +2,6 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# System deps for lxml / Pillow
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libxml2-dev libxslt1-dev gcc curl \
     && rm -rf /var/lib/apt/lists/*
@@ -12,7 +11,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Data volume
 RUN mkdir -p /data
 
 EXPOSE 5000

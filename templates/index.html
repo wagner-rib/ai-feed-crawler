@@ -9,7 +9,7 @@
     Live AI Intelligence Hub
   </div>
   <h1>The AI Feed You<br>Actually Need</h1>
-  <p>Aggregating research, news, and insights from the <strong>top 50 AI sources</strong> worldwide — updated every 2 hours.</p>
+  <p>AI-written digests and original insights from the <strong>top 50 AI sources</strong> worldwide — research, labs, tools &amp; news in one place.</p>
 
   <div class="hero-stats">
     <div class="hero-stat">
@@ -38,7 +38,7 @@
 <div class="filter-bar">
   <div class="filter-inner">
     <span class="filter-label">Filter:</span>
-    <a href="/" class="filter-btn {{ 'active' if not selected_category }}">All</a>
+    <a href="/" class="filter-btn {{ 'active' if not selected_category and not tag | default('') }}">All</a>
     {% for cat in categories %}
       <a href="/?category={{ cat | urlencode }}{% if query %}&q={{ query | urlencode }}{% endif %}"
          class="filter-btn {{ 'active' if selected_category == cat }}">{{ cat }}</a>
@@ -53,54 +53,79 @@
   <main>
     <div class="articles-header">
       <span class="articles-title">
-        {% if query %}
+        {% if tag is defined and tag %}
+          #{{ tag }}
+        {% elif query %}
           Results for "{{ query }}"
         {% elif selected_category %}
           {{ selected_category }}
         {% elif selected_source %}
           {{ selected_source }}
         {% else %}
-          Latest Articles
+          Latest AI News &amp; Research
         {% endif %}
       </span>
-      <span class="articles-count">{{ total_articles }} articles</span>
+      <span class="articles-count">{{ total_articles | default(0) }} articles</span>
     </div>
 
     {% if articles %}
     <div class="articles-grid">
       {% for article in articles %}
       {% set is_featured = loop.first and page == 1 and not query and not selected_category %}
-      <article class="card {{ 'card-featured' if is_featured }}">
+      <article class="card {{ 'card-featured' if is_featured }}" itemscope itemtype="https://schema.org/Article">
+        <meta itemprop="datePublished" content="{{ article.published }}" />
+        <meta itemprop="publisher" content="{{ article.source_name }}" />
 
         {% if article.image_url %}
-          <img class="{{ 'card-image' }}"
+          <img class="card-image {{ 'card-image-featured' if is_featured }}"
                src="{{ article.image_url }}"
                alt="{{ article.title }}"
-               loading="lazy"
-               onerror="this.parentNode.querySelector('.card-image-placeholder') && (this.style.display='none'); this.onerror=null;" />
+               loading="{{ 'eager' if loop.index <= 4 else 'lazy' }}"
+               itemprop="image"
+               onerror="this.closest('.card').querySelector('.card-image-placeholder') ? (this.style.display='none') : null; this.onerror=null;" />
         {% else %}
-          <div class="card-image-placeholder">{{ article.logo }}</div>
+          <div class="card-image-placeholder {{ 'card-image-featured' if is_featured }}">{{ article.logo }}</div>
         {% endif %}
 
         <div class="card-body">
           <div class="card-source">
             <span class="card-badge badge-{{ article.category }}">{{ article.logo }} {{ article.category }}</span>
             <span class="card-source-name">{{ article.source_name }}</span>
+            {% if article.reading_time %}
+            <span class="read-time">{{ article.reading_time }} min read</span>
+            {% endif %}
           </div>
 
-          <h2 class="card-title {{ 'text-xl' if is_featured }}">
-            <a href="/article/{{ article.uid }}">{{ article.title }}</a>
+          <h2 class="card-title" itemprop="headline">
+            <a href="/article/{{ article.uid }}" itemprop="url">{{ article.title }}</a>
           </h2>
 
-          {% if article.summary %}
-          <p class="card-summary">{{ article.summary | truncate_words(is_featured and 50 or 25) }}</p>
+          {% set display_text = article.ai_digest or article.summary %}
+          {% if display_text %}
+          <p class="card-summary" itemprop="description">
+            {{ display_text | truncate_words(is_featured and 60 or 30) }}
+          </p>
+          {% endif %}
+
+          <!-- Tags -->
+          {% if article.tags %}
+          <div class="card-tags">
+            {% for tag in article.tags | from_json | list %}
+            <a href="/tag/{{ tag | urlencode }}" class="tag-chip">#{{ tag }}</a>
+            {% endfor %}
+          </div>
+          {% endif %}
+
+          <!-- AI badge if digest available -->
+          {% if article.ai_digest %}
+          <div class="ai-badge">⚡ AI Digest</div>
           {% endif %}
 
           <div class="card-footer">
             <span class="card-time">🕐 {{ article.published | timeago }}</span>
             <div class="card-actions">
-              <a href="/article/{{ article.uid }}" class="btn-sm btn-outline">Details</a>
-              <a href="{{ article.url }}" target="_blank" rel="noopener" class="btn-sm btn-primary">Read →</a>
+              <a href="/article/{{ article.uid }}" class="btn-sm btn-outline">Read Digest</a>
+              <a href="{{ article.url }}" target="_blank" rel="noopener nofollow" class="btn-sm btn-primary">Source →</a>
             </div>
           </div>
         </div>
@@ -110,17 +135,17 @@
 
     <!-- Pagination -->
     {% if total_pages > 1 %}
-    <nav class="pagination">
+    <nav class="pagination" aria-label="Article pages">
       <a href="?page={{ page - 1 }}{% if selected_category %}&category={{ selected_category }}{% endif %}{% if query %}&q={{ query }}{% endif %}"
-         class="page-btn {{ 'disabled' if page == 1 }}">‹</a>
+         class="page-btn {{ 'disabled' if page == 1 }}" aria-label="Previous">‹</a>
 
       {% for p in range([1, page - 2] | max, [total_pages + 1, page + 3] | min) %}
         <a href="?page={{ p }}{% if selected_category %}&category={{ selected_category }}{% endif %}{% if query %}&q={{ query }}{% endif %}"
-           class="page-btn {{ 'active' if p == page }}">{{ p }}</a>
+           class="page-btn {{ 'active' if p == page }}" aria-label="Page {{ p }}">{{ p }}</a>
       {% endfor %}
 
       <a href="?page={{ page + 1 }}{% if selected_category %}&category={{ selected_category }}{% endif %}{% if query %}&q={{ query }}{% endif %}"
-         class="page-btn {{ 'disabled' if page == total_pages }}">›</a>
+         class="page-btn {{ 'disabled' if page == total_pages }}" aria-label="Next">›</a>
     </nav>
     {% endif %}
 
@@ -128,7 +153,7 @@
     <div class="empty-state">
       <div class="icon">🔍</div>
       <h2>No articles found</h2>
-      <p>Try a different search or category — or wait for the next crawl.</p>
+      <p>Try a different search term or category — or wait for the next crawl.</p>
     </div>
     {% endif %}
   </main>
@@ -143,13 +168,11 @@
         <div class="cat-list">
           {% set max_count = stats.by_category.values() | max if stats.by_category else 1 %}
           {% for cat, count in stats.by_category.items() %}
-          <a href="/?category={{ cat | urlencode }}" style="text-decoration:none; color:inherit;">
+          <a href="/?category={{ cat | urlencode }}" class="cat-link">
             <div class="cat-item">
-              <div class="cat-item-left">
-                <span class="cat-name">{{ cat }}</span>
-              </div>
+              <span class="cat-name">{{ cat }}</span>
               <div class="cat-bar-wrap">
-                <div class="cat-bar" style="width: {{ (count / max_count * 100) | int }}%"></div>
+                <div class="cat-bar" style="width:{{ (count / max_count * 100) | int }}%"></div>
               </div>
               <span class="cat-count">{{ count }}</span>
             </div>
@@ -162,7 +185,7 @@
     <!-- Sources widget -->
     <div class="widget">
       <div class="widget-header">🌐 Sources</div>
-      <div class="widget-body" style="padding: 8px 12px;">
+      <div class="widget-body" style="padding:8px 12px;">
         <div class="source-list">
           {% for feed in feeds %}
           <a href="/?source={{ feed.name | urlencode }}"
@@ -175,16 +198,15 @@
       </div>
     </div>
 
-    <!-- Refresh widget -->
+    <!-- Live feed widget -->
     <div class="widget">
       <div class="widget-header">⚡ Live Feed</div>
       <div class="widget-body" style="text-align:center; display:flex; flex-direction:column; gap:12px;">
         <div style="font-size:.82rem; color:var(--muted2);">
-          <span class="live-dot"></span>
-          Auto-refreshes every 2 hours
+          <span class="live-dot"></span> Auto-refreshes every 2 hours
         </div>
         <div style="font-size:.75rem; color:var(--muted);">
-          Last fetch: {{ stats.last_fetch | timeago if stats.last_fetch else "Never" }}
+          Last fetch: {{ stats.last_fetch | timeago if stats.last_fetch else "Pending…" }}
         </div>
         <button id="refresh-btn" class="btn-sm btn-primary" style="width:100%; justify-content:center;">
           🔄 Refresh Now

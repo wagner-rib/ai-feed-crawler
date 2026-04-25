@@ -12,12 +12,14 @@ services:
     environment:
       - FLASK_ENV=production
       - PYTHONUNBUFFERED=1
+      - SITE_URL=${SITE_URL:-http://localhost:8080}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/api/stats"]
       interval: 60s
       timeout: 10s
       retries: 3
-      start_period: 30s
+      start_period: 40s
 
 volumes:
   aifeed_data:
