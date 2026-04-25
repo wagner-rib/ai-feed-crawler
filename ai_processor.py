@@ -89,6 +89,43 @@ def init_db_v2():
 # HTML extraction & cleaning
 # ---------------------------------------------------------------------------
 
+def _unwrap_pictures(soup: BeautifulSoup, base_url: str) -> None:
+    """
+    Convert <picture><source srcset="..."><img></picture> → plain <img src="...">
+    BEFORE readability runs, so it doesn't silently drop them.
+    Picks the highest-resolution source available.
+    """
+    for picture in soup.find_all("picture"):
+        img = picture.find("img")
+        if not img:
+            picture.decompose()
+            continue
+
+        # Best src: try img src first, then source srcset
+        best_src = img.get("src") or img.get("data-src") or ""
+
+        # If img has no src, pull from <source> tags
+        if not best_src or best_src.startswith("data:"):
+            for source in picture.find_all("source"):
+                srcset = source.get("srcset") or source.get("data-srcset") or ""
+                if srcset:
+                    # Take the last entry (usually highest res)
+                    best_src = srcset.strip().split(",")[-1].strip().split()[0]
+                    break
+
+        if best_src and best_src.startswith("//"):
+            best_src = "https:" + best_src
+        if best_src and not best_src.startswith(("http", "data:")):
+            best_src = urljoin(base_url, best_src)
+
+        new_img = BeautifulSoup(
+            f'<img src="{best_src}" alt="{img.get("alt","")}" loading="lazy">',
+            "lxml",
+        ).find("img")
+
+        picture.replace_with(new_img)
+
+
 def _fix_urls(soup: BeautifulSoup, base_url: str) -> None:
     """Make all relative src/href absolute."""
     for tag in soup.find_all(True):
@@ -165,10 +202,79 @@ def _fix_lazy_images(soup: BeautifulSoup, base_url: str) -> None:
                 break
 
 
+def _extract_article_images(orig_soup: BeautifulSoup, base_url: str) -> list[str]:
+    """
+    Extract in-article images directly from the original page HTML,
+    searching common article content selectors.
+    Returns list of absolute image URLs (deduped, no trackers).
+    """
+    # Common article body selectors — ordered by specificity
+    selectors = [
+        "article", "[itemprop='articleBody']",
+        "[class*='article-body']", "[class*='article_body']",
+        "[class*='post-content']", "[class*='post_content']",
+        "[class*='entry-content']", "[class*='story-body']",
+        "[class*='story__body']", "[class*='content-body']",
+        "[class*='c-pageArticle']", "[class*='article__body']",
+        "main", ".content", "#content",
+    ]
+
+    container = None
+    for sel in selectors:
+        try:
+            container = orig_soup.select_one(sel)
+            if container:
+                break
+        except Exception:
+            continue
+
+    search_area = container if container else orig_soup
+
+    seen, result = set(), []
+    # Look inside <picture>, <figure>, and plain <img> tags
+    for el in search_area.find_all(["picture", "img", "figure"]):
+        src = ""
+        if el.name == "picture":
+            img = el.find("img")
+            src = img.get("src","") if img else ""
+            if not src or src.startswith("data:"):
+                for source in el.find_all("source"):
+                    srcset = source.get("srcset","") or source.get("data-srcset","")
+                    if srcset:
+                        # highest res = last or widest descriptor
+                        candidates = [p.strip().split()[0] for p in srcset.split(",") if p.strip()]
+                        if candidates:
+                            src = candidates[-1]
+                            break
+        elif el.name == "img":
+            src = el.get("src","") or el.get("data-src","") or el.get("data-lazy-src","")
+        elif el.name == "figure":
+            img = el.find("img")
+            if img:
+                src = img.get("src","") or img.get("data-src","")
+
+        if not src:
+            continue
+        if src.startswith("//"):
+            src = "https:" + src
+        if not src.startswith("http"):
+            src = urljoin(base_url, src)
+        # Skip trackers, icons, tiny images
+        if any(x in src.lower() for x in ("pixel","tracker","beacon","1x1","blank.gif","logo","avatar","icon")):
+            continue
+        if src not in seen:
+            seen.add(src)
+            result.append(src)
+
+    return result
+
+
 def fetch_and_clean(url: str) -> dict:
     """
-    Fetch URL, extract main content with readability-lxml,
-    return clean sanitized HTML + plain text + metadata.
+    Fetch + clean article. Strategy:
+      1. readability-lxml  →  clean article text
+      2. direct selector extraction  →  in-article images
+      3. merge images back into the text content
     """
     result = {"content_html": "", "plain_text": "", "image": None, "author": "", "title": ""}
 
@@ -182,14 +288,12 @@ def fetch_and_clean(url: str) -> dict:
 
     orig_soup = BeautifulSoup(raw_html, "lxml")
 
-    # OG image first — most reliable hero image
+    # OG / Twitter meta image — most reliable hero
     for prop in ("og:image", "og:image:secure_url", "twitter:image"):
         meta = orig_soup.find("meta", property=prop) or orig_soup.find("meta", attrs={"name": prop})
         if meta and meta.get("content"):
             img_url = meta["content"]
-            if img_url.startswith("//"):
-                img_url = "https:" + img_url
-            result["image"] = img_url
+            result["image"] = "https:" + img_url if img_url.startswith("//") else img_url
             break
 
     # Author
@@ -200,8 +304,17 @@ def fetch_and_clean(url: str) -> dict:
             result["author"] = (el.get("content") or el.get_text(strip=True))[:120]
             break
 
+    # Extract in-article images from original HTML (before readability touches it)
+    article_images = _extract_article_images(orig_soup, url)
+    log.debug("Direct image extraction: %d images from %s", len(article_images), url)
+
+    # Pre-process for readability: unwrap <picture>, fix lazy-loads
+    pre_soup = BeautifulSoup(raw_html, "lxml")
+    _unwrap_pictures(pre_soup, url)
+    _fix_lazy_images(pre_soup, url)
+
     try:
-        doc = Document(raw_html)
+        doc = Document(str(pre_soup))
         content_html = doc.summary(html_partial=True)
         result["title"] = doc.title() or ""
     except Exception as exc:
@@ -209,37 +322,49 @@ def fetch_and_clean(url: str) -> dict:
         return result
 
     soup = BeautifulSoup(content_html, "lxml")
-
-    # Fix lazy images and relative URLs BEFORE bleach
-    _fix_lazy_images(soup, url)
     _fix_urls(soup, url)
 
-    # Sanitize — bleach now sees proper src= attributes
-    clean = bleach.clean(
-        str(soup),
-        tags=ALLOWED_TAGS,
-        attributes=ALLOWED_ATTRS,
-        strip=True,
-    )
-
+    # Sanitize
+    clean = bleach.clean(str(soup), tags=ALLOWED_TAGS, attributes=ALLOWED_ATTRS, strip=True)
     clean_soup = BeautifulSoup(clean, "lxml")
 
-    # Drop broken/tracker images
+    # Count images readability kept
+    existing_srcs = {img.get("src","") for img in clean_soup.find_all("img") if img.get("src")}
+
+    # Inject missing article images as figures after every ~3 paragraphs
+    missing_imgs = [s for s in article_images if s not in existing_srcs]
+    if missing_imgs:
+        body = clean_soup.find("body") or clean_soup
+        paras = body.find_all("p")
+        step = max(3, len(paras) // (len(missing_imgs) + 1))
+        for i, img_src in enumerate(missing_imgs):
+            insert_after = paras[min((i + 1) * step - 1, len(paras) - 1)] if paras else None
+            fig_html = (f'<figure><img src="{img_src}" alt="" loading="lazy">'
+                        f'</figure>')
+            fig = BeautifulSoup(fig_html, "lxml").find("figure")
+            if insert_after:
+                insert_after.insert_after(fig)
+            else:
+                body.append(fig)
+
+    # Clean up images: remove trackers, normalise attrs
     for img in clean_soup.find_all("img"):
         src = img.get("src", "")
         if (not src or src.startswith("data:") or
-                any(x in src for x in ("pixel", "tracker", "beacon", "1x1", "blank.gif"))):
+                any(x in src.lower() for x in ("pixel","tracker","beacon","1x1","blank.gif"))):
             img.decompose()
         else:
             img["loading"] = "lazy"
             img.attrs = {k: v for k, v in img.attrs.items()
                          if k in ("src", "alt", "title", "width", "height", "loading")}
 
-    # First real image as fallback hero if OG not found
+    # Fallback hero: first in-article image
     if not result["image"]:
-        first_img = clean_soup.find("img")
-        if first_img and first_img.get("src"):
-            result["image"] = first_img["src"]
+        first = clean_soup.find("img")
+        if first and first.get("src"):
+            result["image"] = first["src"]
+    if not result["image"] and article_images:
+        result["image"] = article_images[0]
 
     # Remove empty paragraphs
     for p in clean_soup.find_all("p"):
@@ -249,6 +374,9 @@ def fetch_and_clean(url: str) -> dict:
     result["content_html"] = str(clean_soup.body or clean_soup)
     result["plain_text"]   = _plain_text(clean_soup)
 
+    log.debug("Result: %d words, %d imgs total",
+              len(result["plain_text"].split()),
+              len(clean_soup.find_all("img")))
     return result
 
 
