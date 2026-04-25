@@ -259,8 +259,19 @@ def _extract_article_images(orig_soup: BeautifulSoup, base_url: str) -> list[str
             src = "https:" + src
         if not src.startswith("http"):
             src = urljoin(base_url, src)
-        # Skip trackers, icons, tiny images
-        if any(x in src.lower() for x in ("pixel","tracker","beacon","1x1","blank.gif","logo","avatar","icon")):
+        # Skip trackers, icons, avatars, author headshots, tiny square images
+        src_lower = src.lower()
+        if any(x in src_lower for x in (
+            "pixel","tracker","beacon","1x1","blank.gif","logo",
+            "avatar","icon","author","profile","headshot","gravatar",
+            "frame=1","height=192","height=100","height=64","height=48",
+        )):
+            continue
+        # Skip square images (author portraits) by checking equal w/h params
+        import re as _re
+        w = _re.search(r'[?&]width=(\d+)', src)
+        h = _re.search(r'[?&]height=(\d+)', src)
+        if w and h and w.group(1) == h.group(1) and int(w.group(1)) <= 300:
             continue
         if src not in seen:
             seen.add(src)
@@ -347,11 +358,24 @@ def fetch_and_clean(url: str) -> dict:
             else:
                 body.append(fig)
 
-    # Clean up images: remove trackers, normalise attrs
+    # Clean up images: remove trackers, avatars, author portraits
     for img in clean_soup.find_all("img"):
         src = img.get("src", "")
-        if (not src or src.startswith("data:") or
-                any(x in src.lower() for x in ("pixel","tracker","beacon","1x1","blank.gif"))):
+        src_lower = src.lower()
+        bad = (not src or src.startswith("data:") or
+               any(x in src_lower for x in (
+                   "pixel","tracker","beacon","1x1","blank.gif",
+                   "avatar","author","profile","headshot","gravatar","frame=1",
+                   "height=192","height=100","height=64","height=48",
+               )))
+        # Also drop square portrait-sized images
+        import re as _re
+        if not bad:
+            w = _re.search(r'[?&]width=(\d+)', src)
+            h = _re.search(r'[?&]height=(\d+)', src)
+            if w and h and w.group(1) == h.group(1) and int(w.group(1)) <= 300:
+                bad = True
+        if bad:
             img.decompose()
         else:
             img["loading"] = "lazy"

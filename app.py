@@ -258,8 +258,26 @@ def api_refresh():
 @app.route("/api/process")
 def api_process():
     limit = request.args.get("limit", 20, type=int)
-    done = process_batch(limit=min(limit, 50))
+    done = process_batch(limit=min(limit, 100))
     return jsonify({"status": "ok", "processed": done})
+
+
+@app.route("/api/process-all")
+def api_process_all():
+    """Drain entire unprocessed queue — runs in background."""
+    import threading
+    def _run():
+        with app.app_context():
+            remaining = 9999
+            total = 0
+            while remaining > 0:
+                n = process_batch(limit=60, delay=1.0)
+                total += n
+                if n == 0:
+                    break
+            app.logger.info("process-all complete — %d articles processed", total)
+    threading.Thread(target=_run, daemon=True).start()
+    return jsonify({"status": "started", "message": "Processing all articles in background"})
 
 
 @app.errorhandler(404)
@@ -273,7 +291,7 @@ def not_found(e):
 
 def crawl_and_process():
     crawl_all()
-    process_batch(limit=30)
+    process_batch(limit=60)
 
 
 def start_scheduler():
