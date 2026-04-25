@@ -26,6 +26,21 @@ HEADERS = {
 }
 FETCH_TIMEOUT = 15
 
+# URL path segments that indicate login-required or non-article pages
+BLOCKED_PATH_PATTERNS = (
+    "/academy/", "/courses/", "/course/",
+    "/login", "/signin", "/signup", "/register",
+    "/members/", "/subscriber/", "/subscribe",
+    "/pricing", "/plans",
+)
+
+
+def _is_public_url(url: str) -> bool:
+    """Return False for URLs that are known to require login or are non-articles."""
+    from urllib.parse import urlparse
+    path = urlparse(url).path.lower()
+    return not any(pat in path for pat in BLOCKED_PATH_PATTERNS)
+
 
 def get_db():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -133,6 +148,9 @@ def crawl_feed(feed_cfg: dict) -> int:
         for entry in parsed.entries[:30]:  # max 30 per feed per run
             link = entry.get("link") or entry.get("id", "")
             if not link:
+                continue
+            if not _is_public_url(link):
+                log.debug("Skipping non-public URL: %s", link)
                 continue
             uid = _uid(link)
             title = _clean_html(entry.get("title", "")).strip()

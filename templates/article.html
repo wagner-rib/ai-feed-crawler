@@ -98,6 +98,17 @@
         {% if para.strip() %}<p>{{ para.strip() }}</p>{% endif %}
       {% endfor %}
     </div>
+
+    {% else %}
+    <!-- Paywall / login-required fallback -->
+    <div class="paywall-notice">
+      <div class="paywall-icon">🔒</div>
+      <h2>Full content requires access</h2>
+      <p>This article is behind a login or paywall on <strong>{{ article.source_name }}</strong>. Read it directly on their site.</p>
+      <a href="{{ article.url }}" target="_blank" rel="noopener" class="btn-lg">
+        Read on {{ article.source_name }} →
+      </a>
+    </div>
     {% endif %}
 
     <!-- Source credit at bottom -->

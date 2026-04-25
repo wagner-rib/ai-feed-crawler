@@ -291,6 +291,10 @@ def fetch_and_clean(url: str) -> dict:
 
     try:
         resp = requests.get(url, headers=HEADERS, timeout=FETCH_TIMEOUT, allow_redirects=True)
+        # Paywalled / login-required pages — mark as inaccessible, don't blank out
+        if resp.status_code in (401, 403, 429):
+            log.info("Skipping inaccessible URL (%d): %s", resp.status_code, url)
+            return result
         resp.raise_for_status()
         raw_html = resp.text
     except Exception as exc:
