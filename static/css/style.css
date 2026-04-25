@@ -329,9 +329,12 @@ img { max-width: 100%; }
   background: var(--bg2); border: 1px solid var(--border);
   border-radius: var(--radius); padding: 18px 22px; flex-wrap: wrap;
 }
-.source-credit-logo { font-size: 1.8rem; flex-shrink: 0; }
-.source-credit-text { flex: 1; font-size: .84rem; color: var(--muted2); line-height: 1.6; }
-.source-credit-text a { color: var(--accent2); font-weight: 600; }
+.source-credit-logo { font-size: 2rem; flex-shrink: 0; }
+.source-credit-text { flex: 1; font-size: .85rem; color: var(--muted2); line-height: 1.7; }
+.source-credit-text strong { color: var(--text); }
+.source-credit-text a { color: var(--accent2); }
+.source-credit-actions { display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
+@media (max-width: 600px) { .source-credit-inner { flex-direction: column; } .source-credit-actions { flex-direction: row; flex-wrap: wrap; } }
 
 /* ===== Sources page ===== */
 .sources-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px,1fr)); gap: 16px; padding: 32px 24px; max-width: 1320px; margin: 0 auto; }

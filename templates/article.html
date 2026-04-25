@@ -105,14 +105,19 @@
       <div class="source-credit-inner">
         <span class="source-credit-logo">{{ article.logo }}</span>
         <div class="source-credit-text">
-          Originally published on
-          <a href="{{ article.url }}" target="_blank" rel="noopener">{{ article.source_name }}</a>.
-          {% if article.author %}Written by {{ article.author }}.{% endif %}
-          All rights belong to the original publisher.
+          <strong>Originally published on <a href="{{ article.source_url }}" target="_blank" rel="noopener">{{ article.source_name }}</a>.</strong><br>
+          {% if article.author %}By {{ article.author }}.{% endif %}
+          All content and rights belong to the original publisher.
+          <a href="{{ article.url }}" target="_blank" rel="noopener">Read the full article here.</a>
         </div>
-        <a href="{{ article.url }}" target="_blank" rel="noopener" class="btn-sm btn-outline">
-          View Original ↗
-        </a>
+        <div class="source-credit-actions">
+          <a href="{{ article.url }}" target="_blank" rel="noopener" class="btn-lg">
+            Read on {{ article.source_name }} →
+          </a>
+          <a href="/?source={{ article.source_name | urlencode }}" class="btn-sm btn-outline">
+            More from {{ article.source_name }}
+          </a>
+        </div>
       </div>
     </div>
 
@@ -150,31 +155,12 @@
   <aside class="sidebar">
 
     <div class="widget">
-      <div class="widget-header">📌 Source</div>
-      <div class="widget-body" style="display:flex; flex-direction:column; gap:12px; text-align:center;">
-        <div style="font-size:2.5rem;">{{ article.logo }}</div>
-        <div style="font-weight:700;">{{ article.source_name }}</div>
-        <span class="card-badge badge-{{ article.category }}" style="align-self:center;">{{ article.category }}</span>
-        <a href="{{ article.source_url }}" target="_blank" rel="noopener"
-           class="btn-sm btn-outline" style="justify-content:center;">Visit {{ article.source_name }} ↗</a>
-        <a href="/?source={{ article.source_name | urlencode }}"
-           class="btn-sm btn-primary" style="justify-content:center;">More from this source</a>
-      </div>
-    </div>
-
-    <div class="widget">
-      <div class="widget-header">📋 Info</div>
+      <div class="widget-header">📋 Article Info</div>
       <div class="widget-body">
         <div class="info-row">
           <span class="info-label">Published</span>
           <span>{{ article.published | timeago }}</span>
         </div>
-        {% if article.author %}
-        <div class="info-row">
-          <span class="info-label">Author</span>
-          <span>{{ article.author }}</span>
-        </div>
-        {% endif %}
         {% if article.reading_time %}
         <div class="info-row">
           <span class="info-label">Read time</span>
@@ -182,32 +168,41 @@
         </div>
         {% endif %}
         <div class="info-row">
-          <span class="info-label">Views</span>
-          <span>{{ article.views }}</span>
-        </div>
-        <div class="info-row">
           <span class="info-label">Category</span>
           <a href="/?category={{ article.category | urlencode }}">{{ article.category }}</a>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Views</span>
+          <span>{{ article.views }}</span>
         </div>
         {% if article.tags %}
         <div class="info-row" style="flex-direction:column; gap:6px; align-items:flex-start;">
           <span class="info-label">Tags</span>
-          <div class="card-tags">
+          <div class="card-tags" style="margin-top:4px;">
             {% for tag in article.tags | from_json %}
             <a href="/tag/{{ tag | urlencode }}" class="tag-chip">#{{ tag }}</a>
             {% endfor %}
           </div>
         </div>
         {% endif %}
-        <a href="{{ article.url }}" target="_blank" rel="noopener"
-           class="btn-sm btn-outline" style="justify-content:center; margin-top:12px; width:100%;">
-          View Original ↗
-        </a>
       </div>
     </div>
 
-    <div style="text-align:center;">
-      <a href="/" class="btn-sm btn-outline">← Back to Feed</a>
+    <div class="widget">
+      <div class="widget-header">🌐 More like this</div>
+      <div class="widget-body" style="display:flex; flex-direction:column; gap:8px;">
+        <a href="/?category={{ article.category | urlencode }}"
+           class="btn-sm btn-outline" style="justify-content:center;">
+          More {{ article.category }}
+        </a>
+        <a href="/?source={{ article.source_name | urlencode }}"
+           class="btn-sm btn-outline" style="justify-content:center;">
+          More from {{ article.source_name }}
+        </a>
+        <a href="/" class="btn-sm btn-outline" style="justify-content:center;">
+          ← Back to Feed
+        </a>
+      </div>
     </div>
 
   </aside>
