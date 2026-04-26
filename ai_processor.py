@@ -375,6 +375,9 @@ _BAD_LINK_DOMAINS = (
     "facebook.com/sharer", "twitter.com/intent/tweet",
     "linkedin.com/shareArticle", "reddit.com/submit",
     "mailto:?subject=", "pinterest.com/pin/create",
+    # Author profile pages
+    "/author/", "/authors/", "/staff/", "/contributor/", "/contributors/",
+    "/people/", "/profile/", "/writers/", "/reporter/",
 )
 
 _BOILERPLATE_RE = re.compile(
@@ -401,18 +404,43 @@ _BOILERPLATE_RE = re.compile(
 )
 
 
+_AUTHOR_URL_RE = re.compile(
+    r"/authors?/|/staff/|/contributors?/|/people/|/profiles?/|/writers?/|/reporters?/",
+    re.IGNORECASE,
+)
+_BYLINE_RE = re.compile(
+    r"^\s*(by|written by|author:|posted by|published by)\s*$",
+    re.IGNORECASE,
+)
+
+
 def _strip_boilerplate(result: dict) -> None:
-    """Remove publisher promotional lines (newsletter CTAs, follow-us prompts, etc.)."""
+    """Remove publisher promo lines, author profile links, and bare bylines."""
     content = result.get("content_html")
     if not content:
         return
     soup = BeautifulSoup(content, "lxml")
     changed = False
+
+    # 1. Remove promotional paragraphs / CTAs
     for el in soup.find_all(["p", "div", "li", "aside", "section", "small"]):
         txt = el.get_text(" ", strip=True)
         if len(txt) < 500 and _BOILERPLATE_RE.search(txt):
             el.decompose()
             changed = True
+
+    # 2. Strip author profile links; remove parent if it becomes a bare byline
+    for a in soup.find_all("a", href=True):
+        if _AUTHOR_URL_RE.search(a.get("href", "")):
+            parent = a.parent
+            a.unwrap()   # keep the text, drop the <a>
+            changed = True
+            # Drop the parent element if it's now empty or just a byline word
+            if parent and parent.name in ("p", "li", "div", "span", "small"):
+                remaining = parent.get_text(" ", strip=True)
+                if not remaining or _BYLINE_RE.match(remaining):
+                    parent.decompose()
+
     if changed:
         body = soup.find("body")
         result["content_html"] = body.decode_contents() if body else str(soup)
