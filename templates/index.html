@@ -7,7 +7,8 @@
 
 {% block content %}
 
-<!-- Hero -->
+<!-- Hero — only on unfiltered front page -->
+{% if not selected_category and not selected_source and not query and not (tag is defined and tag) and page == 1 %}
 <section class="hero">
   <div class="hero-tag">
     <span class="live-dot"></span>
@@ -38,18 +39,7 @@
     </div>
   </div>
 </section>
-
-<!-- Filter Bar -->
-<div class="filter-bar">
-  <div class="filter-inner">
-    <span class="filter-label">Filter:</span>
-    <a href="/" class="filter-btn {{ 'active' if not selected_category and not tag | default('') }}">All</a>
-    {% for cat in categories %}
-      <a href="/?category={{ cat | urlencode }}{% if query %}&q={{ query | urlencode }}{% endif %}"
-         class="filter-btn {{ 'active' if selected_category == cat }}">{{ cat }}</a>
-    {% endfor %}
-  </div>
-</div>
+{% endif %}
 
 <!-- Main Content -->
 <div class="main-layout">
@@ -89,7 +79,13 @@
                itemprop="image"
                onerror="this.closest('.card').querySelector('.card-image-placeholder') ? (this.style.display='none') : null; this.onerror=null;" />
         {% else %}
-          <div class="card-image-placeholder {{ 'card-image-featured' if is_featured }}">{{ article.logo }}</div>
+          <div class="card-image-placeholder {{ 'card-image-featured' if is_featured }}">
+            <img src="{{ article.source_name | source_logo }}"
+                 alt="{{ article.source_name }}"
+                 class="card-source-logo"
+                 onerror="this.style.display='none';this.nextElementSibling.style.display='inline'">
+            <span style="display:none">{{ article.logo }}</span>
+          </div>
         {% endif %}
 
         <div class="card-body">

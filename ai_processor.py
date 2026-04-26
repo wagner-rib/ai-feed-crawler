@@ -33,6 +33,34 @@ HEADERS = {
     )
 }
 FETCH_TIMEOUT = 20
+JINA_BASE = "https://r.jina.ai/"
+
+# Domains with soft paywalls or JS-rendered content — always use Jina directly
+JINA_PREFERRED_DOMAINS = {
+    "technologyreview.com",
+    "wired.com",
+    "wsj.com",
+    "ft.com",
+    "bloomberg.com",
+    "economist.com",
+    "nytimes.com",
+    "theatlantic.com",
+    "newyorker.com",
+    "businessinsider.com",
+    "blogs.nvidia.com",
+    "zdnet.com",
+    "cnet.com",
+    "techcrunch.com",
+    "arstechnica.com",
+    "alignmentforum.org",
+    "lesswrong.com",
+    "simonwillison.net",
+}
+
+def _prefers_jina(url: str) -> bool:
+    from urllib.parse import urlparse
+    netloc = urlparse(url).netloc.lstrip("www.")
+    return any(netloc == d or netloc.endswith("." + d) for d in JINA_PREFERRED_DOMAINS)
 
 # Tags we allow in the stored HTML
 ALLOWED_TAGS = [
@@ -43,6 +71,7 @@ ALLOWED_TAGS = [
     "blockquote", "q", "cite",
     "pre", "code", "kbd", "samp",
     "a", "img",
+    "video", "source",
     "figure", "figcaption",
     "table", "thead", "tbody", "tfoot", "tr", "th", "td", "caption",
     "div", "section", "article", "aside",
@@ -50,9 +79,11 @@ ALLOWED_TAGS = [
     "dl", "dt", "dd",
 ]
 ALLOWED_ATTRS = {
-    "a":   ["href", "title", "rel", "target"],
-    "img": ["src", "alt", "title", "width", "height", "loading"],
-    "*":   ["class", "id"],
+    "a":      ["href", "title", "rel", "target"],
+    "img":    ["src", "alt", "title", "width", "height", "loading"],
+    "video":  ["autoplay", "muted", "loop", "playsinline", "controls", "width", "height", "style"],
+    "source": ["src", "type"],
+    "*":      ["class", "id"],
 }
 
 SYSTEM_PROMPT = (
@@ -259,19 +290,7 @@ def _extract_article_images(orig_soup: BeautifulSoup, base_url: str) -> list[str
             src = "https:" + src
         if not src.startswith("http"):
             src = urljoin(base_url, src)
-        # Skip trackers, icons, avatars, author headshots, tiny square images
-        src_lower = src.lower()
-        if any(x in src_lower for x in (
-            "pixel","tracker","beacon","1x1","blank.gif","logo",
-            "avatar","icon","author","profile","headshot","gravatar",
-            "frame=1","height=192","height=100","height=64","height=48",
-        )):
-            continue
-        # Skip square images (author portraits) by checking equal w/h params
-        import re as _re
-        w = _re.search(r'[?&]width=(\d+)', src)
-        h = _re.search(r'[?&]height=(\d+)', src)
-        if w and h and w.group(1) == h.group(1) and int(w.group(1)) <= 300:
+        if _is_bad_image(src):
             continue
         if src not in seen:
             seen.add(src)
@@ -280,7 +299,331 @@ def _extract_article_images(orig_soup: BeautifulSoup, base_url: str) -> list[str
     return result
 
 
-def fetch_and_clean(url: str) -> dict:
+def _extract_videos(soup: BeautifulSoup) -> list[str]:
+    """
+    Extract <video> elements from raw HTML and return clean embeddable HTML strings.
+    Handles NVIDIA's data-sources JSON pattern and standard <source> children.
+    """
+    videos = []
+    for video in soup.find_all("video"):
+        sources = []
+
+        # NVIDIA pattern: sources encoded in data-sources JSON attribute
+        raw_ds = video.get("data-sources", "")
+        if raw_ds:
+            try:
+                import html as _html
+                ds = json.loads(_html.unescape(raw_ds))
+                entries = ds.get("desktop") or ds.get("tablet") or ds.get("mobile") or []
+                for s in entries:
+                    if s.get("src"):
+                        sources.append((s["src"], s.get("type", "video/mp4")))
+            except Exception:
+                pass
+
+        # Standard <source> children
+        for source in video.find_all("source"):
+            src = source.get("src", "")
+            if src and not any(src == s[0] for s in sources):
+                sources.append((src, source.get("type", "video/mp4")))
+
+        if not sources:
+            continue
+
+        src_tags = "".join(f'<source src="{s}" type="{t}">' for s, t in sources)
+        videos.append(
+            f'<figure>'
+            f'<video autoplay muted loop playsinline controls style="width:100%;height:auto">'
+            f'{src_tags}'
+            f'</video>'
+            f'</figure>'
+        )
+    return videos
+
+
+def _inject_videos(content_html: str, videos: list[str]) -> str:
+    """Distribute videos evenly through the article content after paragraphs."""
+    if not videos or not content_html:
+        return content_html
+    soup = BeautifulSoup(content_html, "lxml")
+    paras = (soup.find("body") or soup).find_all("p")
+    if not paras:
+        return content_html
+    step = max(2, len(paras) // (len(videos) + 1))
+    for i, vid_html in enumerate(videos):
+        insert_after = paras[min((i + 1) * step - 1, len(paras) - 1)]
+        vid_tag = BeautifulSoup(vid_html, "lxml").find("figure")
+        if vid_tag:
+            insert_after.insert_after(vid_tag)
+    return str(soup.find("body") or soup)
+
+
+_BAD_IMG_KEYWORDS = (
+    "pixel", "tracker", "beacon", "1x1", "blank.gif", "logo",
+    "avatar", "icon", "author", "profile", "headshot", "gravatar",
+    "frame=1", "height=192", "height=100", "height=64", "height=48",
+    "sidebar", "promo", "corp-blog", "related-post", "widget",
+    # Tracking pixel domains / patterns
+    "adsct", "doubleclick", "googletagmanager", "google-analytics",
+    "facebook.com/tr", "bat.bing.com", "analytics.twitter",
+)
+_BAD_LINK_DOMAINS = (
+    "trx-hub.com", "doubleclick.net", "googletagmanager.com",
+    "google-analytics.com", "facebook.com/tr", "analytics",
+    # Social share buttons
+    "facebook.com/sharer", "twitter.com/intent/tweet",
+    "linkedin.com/shareArticle", "reddit.com/submit",
+    "mailto:?subject=", "pinterest.com/pin/create",
+)
+
+def _is_bad_image(src: str) -> bool:
+    """Return True if the image should be filtered out."""
+    if not src or src.startswith("data:"):
+        return True
+    s = src.lower()
+    if any(kw in s for kw in _BAD_IMG_KEYWORDS):
+        return True
+    # WordPress sidebar/related-post thumbnails end in -WxH (sub-1000px)
+    if re.search(r'-\d{2,3}x\d{2,3}\.(jpe?g|png|webp)$', s, re.IGNORECASE):
+        return True
+    # Square portrait images via URL params
+    w = re.search(r'[?&]width=(\d+)', src)
+    h = re.search(r'[?&]height=(\d+)', src)
+    if w and h and w.group(1) == h.group(1) and int(w.group(1)) <= 300:
+        return True
+    return False
+
+
+def _is_bad_link(href: str) -> bool:
+    """Return True for tracking/analytics links that should be stripped."""
+    h = href.lower()
+    return any(d in h for d in _BAD_LINK_DOMAINS)
+
+
+def _md_inline(text: str) -> str:
+    text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
+    text = re.sub(r'\*(.+?)\*', r'<em>\1</em>', text)
+    # Strip empty-text links [](url) — always share buttons or decorative anchors
+    text = re.sub(r'\[\]\([^)]+\)', '', text)
+    def _link_sub(m):
+        href = m.group(2)
+        return '' if _is_bad_link(href) else f'<a href="{href}">{m.group(1)}</a>'
+    text = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', _link_sub, text)
+    return text
+
+
+def _md_to_html(md: str, base_url: str) -> str:
+    """Convert Jina markdown output to basic sanitized HTML."""
+    parts = []
+    for block in re.split(r'\n{2,}', md):
+        block = block.strip()
+        if not block:
+            continue
+        m = re.match(r'^(#{1,6})\s+(.*)', block)
+        if m:
+            lvl = min(len(m.group(1)) + 1, 6)
+            parts.append(f"<h{lvl}>{_md_inline(m.group(2))}</h{lvl}>")
+            continue
+        # Standalone image: ![alt](src)
+        m = re.match(r'^!\[([^\]]*)\]\(([^)]+)\)$', block)
+        if m:
+            src = m.group(2) if m.group(2).startswith("http") else urljoin(base_url, m.group(2))
+            if not _is_bad_image(src):
+                parts.append(f'<figure><img src="{src}" alt="{m.group(1)}" loading="lazy"></figure>')
+            continue
+        # Linked image: [![alt](src)](href) — always decorative/share icons, skip
+        if re.match(r'^!\[', block) and re.search(r'\]\([^)]+\)\]\([^)]+\)$', block):
+            continue
+        # Link-wrapped image: [[![alt](src) ...](href)] — ZDNet review cards etc.
+        # Skip entirely — the image duplicates the hero already shown at top of page
+        if re.match(r'^\[!\[', block):
+            continue
+        if re.match(r'^[-*]\s', block):
+            lis = "".join(
+                f"<li>{_md_inline(i.lstrip('-* '))}</li>"
+                for i in re.split(r'\n[-*]\s', block)
+            )
+            parts.append(f"<ul>{lis}</ul>")
+            continue
+        parts.append(f"<p>{_md_inline(block.replace(chr(10), ' '))}</p>")
+    return "\n".join(parts)
+
+
+def _strip_jina_boilerplate(md: str, article_title: str = "") -> str:
+    """
+    Remove nav/header/footer noise from Jina's full-page markdown output.
+
+    Order matters:
+      1. Strip PREAMBLE first (nav, cookie banners before the article)
+      2. Strip TAIL from the now-clean article slice (sidebar, related, footer)
+      3. Inline cleanup (countdown timers, social links, noise phrases)
+    """
+    # ── STEP 1: Find article start — strip leading navigation / cookie banners ──
+
+    # a) Accessibility skip-to-content anchors (most reliable)
+    _SKIP_ANCHORS = [
+        "[Skip to main content]", "[Skip to content]",
+        "Skip to main content", "Skip to content",
+        "[Skip Navigation]",
+    ]
+    found_skip = False
+    for anchor in _SKIP_ANCHORS:
+        if anchor in md:
+            after_nav = md[md.index(anchor) + len(anchor):]
+            match = re.search(r'\n#{1,2} [^\n]+\n', after_nav)
+            if match:
+                md = after_nav[match.start():].strip()
+            found_skip = True
+            break
+
+    if not found_skip:
+        # b) "## Headline | SiteName" or "## Headline - SiteName" heading —
+        #    Jina captured the browser <title>. Find where it repeats without suffix.
+        m = re.match(r'^#{1,2} (.+?) (?:[|—]| - )\S[^\n]*\n', md)
+        if m:
+            title_part = m.group(1).strip()
+            clean = re.search(r'\n#{1,2} ' + re.escape(title_part) + r'\s*\n', md)
+            if clean:
+                md = md[clean.start():].strip()
+
+    # c) Article title fast-forward (when title isn't near the top)
+    if article_title:
+        title_short = re.sub(r'\s+', ' ', article_title.strip())[:60]
+        if title_short.lower() not in md[:300].lower():
+            match = re.search(
+                r'\n#{1,3} (?:' + re.escape(title_short) + r')[^\n]*\n',
+                md, re.IGNORECASE,
+            )
+            if match:
+                md = md[match.start():].strip()
+
+    # ── STEP 2: Strip TAIL — sidebar / related / footer appended after article ──
+    _TAIL_MARKERS = [
+        "\n## Author\n", "\n## Footer\n", "\n## References\n", "\n---\n",
+        # Article metadata appended after the last paragraph
+        "\nTopics\n",            # TechCrunch post-article tags
+        "\n*   Categories:",     # WordPress/NVIDIA list-style categories
+        "\nCategories:\n",
+        # Related/recommended article widgets
+        "\n## Related\n", "\n## Related Articles\n", "\n## Related Posts\n",
+        "\n### Related News", "\nRelated News\n",
+        "\nLatest in ", "\n### Latest in ", "\n## Latest in ",
+        "\nMore from ", "\n### More from ", "\n## More from ",
+        "\nRelated Articles", "\nRelated Posts", "\nYou might also like",
+        "\nRecommended for you", "\nRecommended Reading",
+        # Social / share sections
+        "\nFollow Us\n", "\nShare This\n",
+        # Newsletter / subscribe CTAs
+        "\n### Newsletters\n", "\n## Newsletters\n",
+        "\nNewsletter sign", "\nSign up for our", "\nGet the latest",
+        "\nBy submitting your email",
+        "\n- [x] ",   # checkbox lists in newsletter / cookie-consent forms
+        # Comments section
+        "\n## Comments\n", "\nLeave a comment", "\nAdd a comment",
+        "Loading comments", "[Forum view]",
+        "\nJoin the discussion", "\nPost a comment",
+        # Ars Technica comments section headers
+        "\nStaff Picks\n",           # header above top-picked reader comments
+        "\nReader Comments\n",       # alternate header
+        "/civis/posts/",             # civis comment thread links
+        "/civis/members/",           # civis user profile links (commenter names)
+        # Privacy / legal footer
+        "\nDo Not Sell", "\nPrivacy Policy\n", "\nCookie Policy",
+        "\nTerms of Service", "\nAll rights reserved",
+        "\nCopyright ©", "\nCopyright (c)",
+        # Cookie consent banners
+        "\nNVIDIA uses cookies", "\nWe use cookies",
+        "\nThis site uses cookies", "\nBy continuing to use this site",
+        # Accessibility / layout notices
+        "\nSome areas of this page may shift",
+        # Subscription / login UI (Ars Technica and similar)
+        "\nCustomize\n", "\nSign in dialog",
+        # Article navigation links (Ars Technica "Prev/Next story")
+        "Prev story", "Next story",
+        # Popular / trending article lists (Ars Technica "Most Read" widget)
+        "Listing image for first story in Most Read",
+        "Listing image for",
+        # Simon Willison sidebar / footer
+        "\n## Recent articles\n",       # sidebar with links to other posts
+        "\nThis is a link post by Simon",
+        "\n### Monthly briefing\n",
+        "\nSponsor me for $",
+        "\nPay me to send you less",
+    ]
+    for marker in _TAIL_MARKERS:
+        idx = md.find(marker)
+        if idx != -1:
+            # Snap to the nearest paragraph boundary (double newline) before the marker,
+            # so we never cut mid-block and leave orphaned partial markup.
+            boundary = md.rfind('\n\n', 0, idx)
+            md = md[:boundary] if boundary > 0 else md[:idx]
+
+    # ── STEP 3: Inline noise cleanup ──
+
+    # Countdown timer lines (e.g. "05:02:59:25")
+    md = re.sub(r'(?m)^\d{2}:\d{2}(:\d{2}){1,2}\s*$\n?', '', md)
+
+    # Empty / icon-only markdown link rows (social share buttons)
+    # Handles: single [](url), multiple chained [](url)[](url), linked images [![](src)](href)
+    md = re.sub(r'\[\]\([^)]+\)', '', md)   # strip all empty links inline
+    md = re.sub(
+        r'(?m)^\s*(\[!\[.*?\]\(.*?\)\]\([^)]+\)\s*)+$\n?',
+        '', md,
+    )
+
+    # Standalone UI noise phrases on their own line
+    _NOISE = {'In Brief', 'Close', 'Posted:', 'Share this:', 'Share', 'Comments',
+              'Subscribe', 'Newsletter', 'Sign up', 'Log in', 'Sign in'}
+    md = '\n'.join(l for l in md.split('\n') if l.strip() not in _NOISE)
+
+    return md.strip()
+
+
+def _jina_fetch(url: str, article_title: str = "") -> dict | None:
+    """
+    Fallback fetch via Jina Reader for blocked/JS-rendered pages.
+    Returns dict with content_html and plain_text, or None on failure.
+    """
+    try:
+        resp = requests.get(
+            JINA_BASE + url,
+            headers={
+                **HEADERS,
+                "Accept": "application/json",
+                # Ask Jina to remove nav/chrome before extracting
+                "X-Remove-Selector": (
+                    "nav, header, footer, aside, "
+                    "[role=navigation], [role=banner], [role=contentinfo], "
+                    ".nav, .header, .footer, .sidebar, .menu, .cookie-banner"
+                ),
+            },
+            timeout=FETCH_TIMEOUT * 2,
+        )
+        if resp.status_code != 200:
+            log.debug("Jina returned %d for %s", resp.status_code, url)
+            return None
+        data = resp.json().get("data", {})
+        md = data.get("content", "")
+        if not md or len(md.split()) < 30:
+            return None
+        md = _strip_jina_boilerplate(md, article_title=article_title)
+        if len(md.split()) < 30:
+            return None
+        log.info("Jina Reader succeeded (%d words): %s", len(md.split()), url)
+        content_html = _md_to_html(md, url)
+        plain_text = re.sub(r"<[^>]+>", " ", content_html).strip()
+        return {
+            "content_html": content_html,
+            "plain_text": plain_text,
+            "title": data.get("title", ""),
+            "image": data.get("images", [None])[0] if data.get("images") else None,
+        }
+    except Exception as exc:
+        log.debug("Jina fetch failed %s: %s", url, exc)
+        return None
+
+
+def fetch_and_clean(url: str, article_title: str = "") -> dict:
     """
     Fetch + clean article. Strategy:
       1. readability-lxml  →  clean article text
@@ -289,16 +632,57 @@ def fetch_and_clean(url: str) -> dict:
     """
     result = {"content_html": "", "plain_text": "", "image": None, "author": "", "title": ""}
 
+    # Soft-paywall / JS-rendered domains: try Jina first, fall back to readability
+    if _prefers_jina(url):
+        log.info("Preferred-Jina domain, using Jina Reader directly: %s", url)
+        jina = _jina_fetch(url, article_title=article_title)
+        if jina:
+            result.update({k: v for k, v in jina.items() if v})
+            # Secondary fetch: OG image (Jina often misses it) + videos
+            try:
+                raw = requests.get(url, headers=HEADERS, timeout=FETCH_TIMEOUT).text
+                raw_soup = BeautifulSoup(raw, "lxml")
+
+                # OG/Twitter meta image — most reliable hero, grab if Jina didn't provide one
+                if not result.get("image"):
+                    for prop in ("og:image", "og:image:secure_url", "twitter:image"):
+                        meta = (raw_soup.find("meta", property=prop) or
+                                raw_soup.find("meta", attrs={"name": prop}))
+                        if meta and meta.get("content"):
+                            img = meta["content"]
+                            img = "https:" + img if img.startswith("//") else img
+                            if not _is_bad_image(img):
+                                result["image"] = img
+                                log.info("OG image from raw HTML: %s", img[:80])
+                                break
+
+                videos = _extract_videos(raw_soup)
+                if videos and result.get("content_html"):
+                    result["content_html"] = _inject_videos(result["content_html"], videos)
+                    log.info("Injected %d video(s) from raw HTML: %s", len(videos), url)
+            except Exception as exc:
+                log.debug("Secondary fetch failed %s: %s", url, exc)
+            return result
+        log.info("Jina failed for preferred domain, falling back to readability: %s", url)
+
+    use_jina = False
     try:
         resp = requests.get(url, headers=HEADERS, timeout=FETCH_TIMEOUT, allow_redirects=True)
-        # Paywalled / login-required pages — mark as inaccessible, don't blank out
         if resp.status_code in (401, 403, 429):
-            log.info("Skipping inaccessible URL (%d): %s", resp.status_code, url)
-            return result
-        resp.raise_for_status()
-        raw_html = resp.text
+            log.info("Blocked (%d), trying Jina Reader: %s", resp.status_code, url)
+            use_jina = True
+        else:
+            resp.raise_for_status()
+            raw_html = resp.text
     except Exception as exc:
         log.debug("Fetch failed %s: %s", url, exc)
+        return result
+
+    if use_jina:
+        jina = _jina_fetch(url, article_title=article_title)
+        if not jina:
+            return result
+        result.update({k: v for k, v in jina.items() if v})
         return result
 
     orig_soup = BeautifulSoup(raw_html, "lxml")
@@ -362,24 +746,9 @@ def fetch_and_clean(url: str) -> dict:
             else:
                 body.append(fig)
 
-    # Clean up images: remove trackers, avatars, author portraits
+    # Clean up images: remove trackers, avatars, sidebar promos, etc.
     for img in clean_soup.find_all("img"):
-        src = img.get("src", "")
-        src_lower = src.lower()
-        bad = (not src or src.startswith("data:") or
-               any(x in src_lower for x in (
-                   "pixel","tracker","beacon","1x1","blank.gif",
-                   "avatar","author","profile","headshot","gravatar","frame=1",
-                   "height=192","height=100","height=64","height=48",
-               )))
-        # Also drop square portrait-sized images
-        import re as _re
-        if not bad:
-            w = _re.search(r'[?&]width=(\d+)', src)
-            h = _re.search(r'[?&]height=(\d+)', src)
-            if w and h and w.group(1) == h.group(1) and int(w.group(1)) <= 300:
-                bad = True
-        if bad:
+        if _is_bad_image(img.get("src", "")):
             img.decompose()
         else:
             img["loading"] = "lazy"
@@ -399,8 +768,22 @@ def fetch_and_clean(url: str) -> dict:
         if not p.get_text(strip=True) and not p.find("img"):
             p.decompose()
 
-    result["content_html"] = str(clean_soup.body or clean_soup)
+    # Inject videos from original HTML (bleach strips them, so add after sanitization)
+    videos = _extract_videos(orig_soup)
+    if videos:
+        result["content_html"] = _inject_videos(str(clean_soup.body or clean_soup), videos)
+        log.info("Injected %d video(s): %s", len(videos), url)
+    else:
+        result["content_html"] = str(clean_soup.body or clean_soup)
     result["plain_text"]   = _plain_text(clean_soup)
+
+    # If readability got thin content (paywall preview / JS SPA), try Jina Reader
+    if len(result["plain_text"].split()) < 300:
+        log.info("Thin content (%d words), trying Jina: %s",
+                 len(result["plain_text"].split()), url)
+        jina = _jina_fetch(url, article_title=article_title)
+        if jina and len(jina["plain_text"].split()) > len(result["plain_text"].split()):
+            result.update({k: v for k, v in jina.items() if v})
 
     log.debug("Result: %d words, %d imgs total",
               len(result["plain_text"].split()),
@@ -476,7 +859,7 @@ def process_article(uid: str) -> bool:
         return False
 
     # 1. Fetch + clean full article
-    data = fetch_and_clean(row["url"])
+    data = fetch_and_clean(row["url"], article_title=row["title"])
     content_html = data["content_html"]
     plain_text   = data["plain_text"]
     author       = data["author"] or ""
@@ -554,8 +937,26 @@ def process_batch(limit: int = 20, delay: float = 1.2) -> int:
     return done
 
 
+def reprocess_empty(limit: int = 50) -> int:
+    """Reset articles that were marked processed but have no content, so they get re-fetched."""
+    with get_db() as conn:
+        result = conn.execute(
+            """UPDATE articles SET processed = 0
+               WHERE processed = 2 AND content_html IS NULL
+               AND id IN (SELECT id FROM articles WHERE processed = 2
+                          AND content_html IS NULL ORDER BY published DESC LIMIT ?)""",
+            (limit,),
+        )
+        count = result.rowcount
+    log.info("Reset %d empty articles for reprocessing.", count)
+    return count
+
+
 if __name__ == "__main__":
+    import sys
     from crawler import init_db
     init_db()
     init_db_v2()
+    if "--reprocess-empty" in sys.argv:
+        reprocess_empty(limit=200)
     process_batch(limit=50)
