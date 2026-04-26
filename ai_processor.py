@@ -377,6 +377,53 @@ _BAD_LINK_DOMAINS = (
     "mailto:?subject=", "pinterest.com/pin/create",
 )
 
+_BOILERPLATE_RE = re.compile(
+    r"follow\s+\w[\w\s]{0,25}:\s*add us"           # "Follow ZDNET: Add us..."
+    r"|add us as a preferred source"
+    r"|preferred (google )?source on (google|chrome)"
+    r"|get more in.depth\s+\w[\w\s]{0,20}(coverage|tech)"
+    r"|sign up for (our |the )?\w[\w\s]{0,30}(newsletter|daily|digest)"
+    r"|subscribe to (our |the )?\w[\w\s]{0,30}newsletter"
+    r"|never miss (out|the latest|an? )"
+    r"|get the latest.{0,60}(inbox|delivered)"
+    r"|want more.{0,60}google search"
+    r"|follow (us |me )?on (twitter|x\b|linkedin|facebook|instagram|threads)"
+    r"|follow (him|her|them|the author) on (twitter|x\b|linkedin|instagram|threads)"
+    r"|you can (also )?follow (him|her|them|\w+) on (twitter|x\b|linkedin)"
+    r"|\btwitter\.com/\w+\b.*\blinkedin\.com"       # "find me on Twitter … LinkedIn"
+    r"|more from (the author|this author|our editors)"
+    r"|read (more|next|also):\s"                    # "Read more: …" cross-links
+    r"|also:\s*(read|see|watch|check)"
+    r"|\bsubscribe\b.{0,40}\bpodcast\b"
+    r"|©\s*20\d\d\s+\w"                             # copyright lines
+    r"|all rights reserved",
+    re.IGNORECASE,
+)
+
+
+def _strip_boilerplate(result: dict) -> None:
+    """Remove publisher promotional lines (newsletter CTAs, follow-us prompts, etc.)."""
+    content = result.get("content_html")
+    if not content:
+        return
+    soup = BeautifulSoup(content, "lxml")
+    changed = False
+    for el in soup.find_all(["p", "div", "li", "aside", "section", "small"]):
+        txt = el.get_text(" ", strip=True)
+        if len(txt) < 500 and _BOILERPLATE_RE.search(txt):
+            el.decompose()
+            changed = True
+    if changed:
+        body = soup.find("body")
+        result["content_html"] = body.decode_contents() if body else str(soup)
+
+
+def _post_process_result(result: dict) -> None:
+    """Run all content cleanup passes before returning a fetch result."""
+    _strip_boilerplate(result)
+    _dedup_hero_image(result)
+
+
 def _dedup_hero_image(result: dict) -> None:
     """Remove content images that are the same photo as the hero (different CDN resize params)."""
     hero = result.get("image")
@@ -687,7 +734,7 @@ def fetch_and_clean(url: str, article_title: str = "") -> dict:
                     log.info("Injected %d video(s) from raw HTML: %s", len(videos), url)
             except Exception as exc:
                 log.debug("Secondary fetch failed %s: %s", url, exc)
-            _dedup_hero_image(result)
+            _post_process_result(result)
             return result
         log.info("Jina failed for preferred domain, falling back to readability: %s", url)
 
@@ -709,7 +756,7 @@ def fetch_and_clean(url: str, article_title: str = "") -> dict:
         if not jina:
             return result
         result.update({k: v for k, v in jina.items() if v})
-        _dedup_hero_image(result)
+        _post_process_result(result)
         return result
 
     orig_soup = BeautifulSoup(raw_html, "lxml")
@@ -817,7 +864,7 @@ def fetch_and_clean(url: str, article_title: str = "") -> dict:
         if jina and len(jina["plain_text"].split()) > len(result["plain_text"].split()):
             result.update({k: v for k, v in jina.items() if v})
 
-    _dedup_hero_image(result)
+    _post_process_result(result)
     log.debug("Result: %d words, %d imgs total",
               len(result["plain_text"].split()),
               len(clean_soup.find_all("img")))
