@@ -7,39 +7,7 @@
 
 {% block content %}
 
-<!-- Hero — only on unfiltered front page -->
-{% if not selected_category and not selected_source and not query and not (tag is defined and tag) and page == 1 %}
-<section class="hero">
-  <div class="hero-tag">
-    <span class="live-dot"></span>
-    Live AI Intelligence Hub
-  </div>
-  <h1>The AI Feed You<br>Actually Need</h1>
-  <p>AI-written digests and original insights from the <strong>top 50 AI sources</strong> worldwide — research, labs, tools &amp; news in one place.</p>
-
-  <div class="hero-stats">
-    <div class="hero-stat">
-      <span class="num count-up" data-target="{{ stats.total }}">{{ stats.total }}</span>
-      <span class="label">Articles Indexed</span>
-    </div>
-    <div class="hero-divider"></div>
-    <div class="hero-stat">
-      <span class="num">50</span>
-      <span class="label">AI Sources</span>
-    </div>
-    <div class="hero-divider"></div>
-    <div class="hero-stat">
-      <span class="num">{{ stats.by_category | length }}</span>
-      <span class="label">Categories</span>
-    </div>
-    <div class="hero-divider"></div>
-    <div class="hero-stat">
-      <span class="num" id="refresh-countdown" data-seconds="7200">02:00:00</span>
-      <span class="label">Next Update</span>
-    </div>
-  </div>
-</section>
-{% endif %}
+<h1 class="visually-hidden">The AI Feed You Actually Need — Top 50 AI Sources, Research &amp; News</h1>
 
 <!-- Main Content -->
 <div class="main-layout">
@@ -161,7 +129,32 @@
   <!-- Sidebar -->
   <aside class="sidebar">
 
-    <!-- Stats widget -->
+    <!-- Live stats widget -->
+    <div class="widget">
+      <div class="widget-header"><span class="live-dot"></span> Live AI Intelligence Hub</div>
+      <div class="widget-body">
+        <div class="live-stats-grid">
+          <div class="live-stat">
+            <span class="live-stat-num count-up" data-target="{{ stats.total }}">{{ stats.total }}</span>
+            <span class="live-stat-lbl">Articles Indexed</span>
+          </div>
+          <div class="live-stat">
+            <span class="live-stat-num">50</span>
+            <span class="live-stat-lbl">AI Sources</span>
+          </div>
+          <div class="live-stat">
+            <span class="live-stat-num">{{ stats.by_category | length }}</span>
+            <span class="live-stat-lbl">Categories</span>
+          </div>
+          <div class="live-stat">
+            <span class="live-stat-num" id="refresh-countdown" data-seconds="7200">02:00:00</span>
+            <span class="live-stat-lbl">Next Update</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Categories widget -->
     <div class="widget">
       <div class="widget-header">📊 Categories</div>
       <div class="widget-body">
