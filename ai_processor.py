@@ -377,6 +377,30 @@ _BAD_LINK_DOMAINS = (
     "mailto:?subject=", "pinterest.com/pin/create",
 )
 
+def _dedup_hero_image(result: dict) -> None:
+    """Remove content images that are the same photo as the hero (different CDN resize params)."""
+    hero = result.get("image")
+    content = result.get("content_html")
+    if not hero or not content:
+        return
+    hero_fname = hero.split("?")[0].rstrip("/").split("/")[-1].lower()
+    if not hero_fname:
+        return
+    soup = BeautifulSoup(content, "lxml")
+    changed = False
+    for img in soup.find_all("img"):
+        src = img.get("src", "")
+        if src.split("?")[0].rstrip("/").split("/")[-1].lower() == hero_fname:
+            parent = img.parent
+            img.decompose()
+            if parent and parent.name == "figure" and not parent.find("img"):
+                parent.decompose()
+            changed = True
+    if changed:
+        body = soup.find("body")
+        result["content_html"] = body.decode_contents() if body else str(soup)
+
+
 def _is_bad_image(src: str) -> bool:
     """Return True if the image should be filtered out."""
     if not src or src.startswith("data:"):
@@ -663,6 +687,7 @@ def fetch_and_clean(url: str, article_title: str = "") -> dict:
                     log.info("Injected %d video(s) from raw HTML: %s", len(videos), url)
             except Exception as exc:
                 log.debug("Secondary fetch failed %s: %s", url, exc)
+            _dedup_hero_image(result)
             return result
         log.info("Jina failed for preferred domain, falling back to readability: %s", url)
 
@@ -684,6 +709,7 @@ def fetch_and_clean(url: str, article_title: str = "") -> dict:
         if not jina:
             return result
         result.update({k: v for k, v in jina.items() if v})
+        _dedup_hero_image(result)
         return result
 
     orig_soup = BeautifulSoup(raw_html, "lxml")
@@ -791,6 +817,7 @@ def fetch_and_clean(url: str, article_title: str = "") -> dict:
         if jina and len(jina["plain_text"].split()) > len(result["plain_text"].split()):
             result.update({k: v for k, v in jina.items() if v})
 
+    _dedup_hero_image(result)
     log.debug("Result: %d words, %d imgs total",
               len(result["plain_text"].split()),
               len(clean_soup.find_all("img")))
