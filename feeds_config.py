@@ -4,8 +4,8 @@ AI_FEEDS = [
     # === AI Lab Blogs ===
     {
         "name": "OpenAI Blog",
-        "rss_url": "https://openai.com/blog/rss.xml",
-        "website_url": "https://openai.com/blog",
+        "rss_url": "https://openai.com/news/rss.xml",
+        "website_url": "https://openai.com/news",
         "category": "AI Labs",
         "logo": "🤖",
     },
@@ -65,6 +65,20 @@ AI_FEEDS = [
         "category": "AI Labs",
         "logo": "🌊",
     },
+    {
+        "name": "Apple ML Research",
+        "rss_url": "https://machinelearning.apple.com/rss.xml",
+        "website_url": "https://machinelearning.apple.com",
+        "category": "AI Labs",
+        "logo": "🍎",
+    },
+    {
+        "name": "AWS Machine Learning Blog",
+        "rss_url": "https://aws.amazon.com/blogs/machine-learning/feed/",
+        "website_url": "https://aws.amazon.com/blogs/machine-learning/",
+        "category": "AI Labs",
+        "logo": "☁️",
+    },
     # === Research ===
     {
         "name": "ArXiv — AI",
@@ -114,6 +128,13 @@ AI_FEEDS = [
         "website_url": "https://www.fast.ai",
         "category": "Research",
         "logo": "🏃",
+    },
+    {
+        "name": "ArXiv — NLP",
+        "rss_url": "https://export.arxiv.org/rss/cs.CL",
+        "website_url": "https://arxiv.org/list/cs.CL/recent",
+        "category": "Research",
+        "logo": "💬",
     },
     # === News ===
     {
@@ -250,6 +271,34 @@ AI_FEEDS = [
         "category": "Newsletters",
         "logo": "📉",
     },
+    {
+        "name": "Simon Willison",
+        "rss_url": "https://simonwillison.net/atom/everything/",
+        "website_url": "https://simonwillison.net",
+        "category": "Newsletters",
+        "logo": "🦎",
+    },
+    {
+        "name": "Ben's Bites",
+        "rss_url": "https://www.bensbites.com/feed",
+        "website_url": "https://www.bensbites.com",
+        "category": "Newsletters",
+        "logo": "🍔",
+    },
+    {
+        "name": "The Rundown AI",
+        "rss_url": "https://rss.beehiiv.com/feeds/2R3C6Bt5wj.xml",
+        "website_url": "https://www.therundown.ai",
+        "category": "Newsletters",
+        "logo": "📋",
+    },
+    {
+        "name": "TLDR AI",
+        "rss_url": "https://tldr.tech/api/rss/ai",
+        "website_url": "https://tldr.tech/ai",
+        "category": "Newsletters",
+        "logo": "⚡",
+    },
     # === Safety & Alignment ===
     {
         "name": "AI Alignment Forum",
@@ -350,6 +399,13 @@ AI_FEEDS = [
         "website_url": "https://www.unite.ai",
         "category": "News",
         "logo": "🔗",
+    },
+    {
+        "name": "404 Media",
+        "rss_url": "https://www.404media.co/rss/",
+        "website_url": "https://www.404media.co",
+        "category": "News",
+        "logo": "📟",
     },
     {
         "name": "AI Trends",
