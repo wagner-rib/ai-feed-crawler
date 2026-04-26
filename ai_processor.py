@@ -359,7 +359,8 @@ def _inject_videos(content_html: str, videos: list[str]) -> str:
 
 
 _BAD_IMG_KEYWORDS = (
-    "pixel", "tracker", "beacon", "1x1", "blank.gif", "logo",
+    "pixel.gif", "pixel.png", "pixel.js", "/pixel?", "=pixel&",
+    "tracker", "beacon", "1x1", "blank.gif", "logo",
     "avatar", "icon", "author", "profile", "headshot", "gravatar",
     "frame=1", "height=192", "height=100", "height=64", "height=48",
     "sidebar", "promo", "corp-blog", "related-post", "widget",
@@ -754,6 +755,11 @@ def fetch_and_clean(url: str, article_title: str = "") -> dict:
             img["loading"] = "lazy"
             img.attrs = {k: v for k, v in img.attrs.items()
                          if k in ("src", "alt", "title", "width", "height", "loading")}
+
+    # Remove figures that have no img (image was stripped, leaving orphan figcaptions)
+    for fig in clean_soup.find_all("figure"):
+        if not fig.find("img"):
+            fig.decompose()
 
     # Fallback hero: first in-article image
     if not result["image"]:
