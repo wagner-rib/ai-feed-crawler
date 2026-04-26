@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <title>{% block title %}AIFeed — Top AI News & Research Aggregator{% endblock %}</title>
+  <title>{% block title %}DeepTrendLab — Top AI News & Research Aggregator{% endblock %}</title>
   <meta name="description" content="{% block description %}The premier AI news aggregator. Research papers, lab announcements, tools and insights from the top 50 AI sources — updated every 2 hours.{% endblock %}" />
   <meta name="keywords" content="{% block keywords %}AI news, artificial intelligence, machine learning, deep learning, LLM, GPT, research papers, OpenAI, Google DeepMind, Anthropic, Hugging Face{% endblock %}" />
   <meta name="robots" content="index, follow" />
@@ -12,15 +12,15 @@
 
   <!-- Open Graph -->
   <meta property="og:type"        content="{% block og_type %}website{% endblock %}" />
-  <meta property="og:site_name"   content="AIFeed" />
-  <meta property="og:title"       content="{% block og_title %}AIFeed — Top AI Intelligence Hub{% endblock %}" />
+  <meta property="og:site_name"   content="DeepTrendLab" />
+  <meta property="og:title"       content="{% block og_title %}DeepTrendLab — Top AI Intelligence Hub{% endblock %}" />
   <meta property="og:description" content="{% block og_desc %}AI news and research from the top 50 sources — updated every 2 hours.{% endblock %}" />
   <meta property="og:url"         content="{{ site_url }}{{ request.path }}" />
   <meta property="og:image"       content="{% block og_image %}{{ site_url }}/static/img/og-default.png{% endblock %}" />
 
   <!-- Twitter Card -->
   <meta name="twitter:card"        content="summary_large_image" />
-  <meta name="twitter:title"       content="{% block tw_title %}AIFeed — AI News Hub{% endblock %}" />
+  <meta name="twitter:title"       content="{% block tw_title %}DeepTrendLab — AI News Hub{% endblock %}" />
   <meta name="twitter:description" content="{% block tw_desc %}Top AI news and research, aggregated and summarized.{% endblock %}" />
   <meta name="twitter:image"       content="{% block tw_image %}{{ site_url }}/static/img/og-default.png{% endblock %}" />
 
@@ -30,7 +30,7 @@
     {
       "@context": "https://schema.org",
       "@type": "WebSite",
-      "name": "AIFeed",
+      "name": "DeepTrendLab",
       "url": "{{ site_url }}",
       "description": "The premier AI news aggregator covering the top 50 AI sources worldwide.",
       "potentialAction": {
@@ -42,7 +42,7 @@
     {
       "@context": "https://schema.org",
       "@type": "Organization",
-      "name": "AIFeed",
+      "name": "DeepTrendLab",
       "url": "{{ site_url }}",
       "logo": "{{ site_url }}/static/img/og-default.png",
       "description": "AI news aggregator — top 50 AI sources, updated every 2 hours.",
@@ -56,7 +56,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Merriweather:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧠</text></svg>" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 30'><defs><linearGradient id='g' x1='0' y1='30' x2='28' y2='0' gradientUnits='userSpaceOnUse'><stop offset='0%%' stop-color='%23a5b4fc'/><stop offset='100%%' stop-color='%2367e8f9'/></linearGradient></defs><polygon points='14,1.5 26.1,8.25 26.1,21.75 14,28.5 1.9,21.75 1.9,8.25' fill='none' stroke='url(%23g)' stroke-width='1.8'/><polyline points='7,21 11,15 16,17.5 21,9' stroke='url(%23g)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' fill='none'/><circle cx='7' cy='21' r='1.8' fill='url(%23g)'/><circle cx='21' cy='9' r='1.8' fill='url(%23g)'/></svg>" />
   <link rel="alternate" type="application/rss+xml" title="AIFeed RSS" href="{{ site_url }}/sitemap.xml" />
   {% block pagination_links %}{% endblock %}
   {% block extra_head %}{% endblock %}
@@ -66,8 +66,25 @@
 <nav class="navbar">
   <div class="navbar-inner">
     <a href="/" class="navbar-brand">
-      <span class="icon">🧠</span>
-      AIFeed
+      <svg class="brand-icon" width="28" height="30" viewBox="0 0 28 30" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs>
+          <linearGradient id="brandGrad" x1="0" y1="30" x2="28" y2="0" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#a5b4fc"/>
+            <stop offset="100%" stop-color="#67e8f9"/>
+          </linearGradient>
+        </defs>
+        <!-- Hexagon outline -->
+        <polygon points="14,1.5 26.1,8.25 26.1,21.75 14,28.5 1.9,21.75 1.9,8.25"
+                 fill="none" stroke="url(#brandGrad)" stroke-width="1.8" stroke-linejoin="round"/>
+        <!-- Trend line with nodes -->
+        <polyline points="7,21 11,15 16,17.5 21,9"
+                  stroke="url(#brandGrad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        <circle cx="7"  cy="21"  r="1.8" fill="url(#brandGrad)"/>
+        <circle cx="11" cy="15"  r="1.8" fill="url(#brandGrad)"/>
+        <circle cx="16" cy="17.5" r="1.8" fill="url(#brandGrad)"/>
+        <circle cx="21" cy="9"   r="1.8" fill="url(#brandGrad)"/>
+      </svg>
+      <span class="brand-text">Deep<span class="brand-accent">Trend</span>Lab</span>
     </a>
 
     <form class="navbar-search" action="/" method="get" role="search">
@@ -96,7 +113,7 @@
 
 <footer>
   <div class="footer-inner">
-    <div class="footer-brand">🧠 AIFeed</div>
+    <div class="footer-brand">DeepTrendLab</div>
     <p class="footer-text">
       AI-powered aggregator covering the top 50 AI sources — research, labs, news &amp; newsletters.<br>
       All original content belongs to respective publishers. Summaries generated by AI for informational purposes.
@@ -107,7 +124,7 @@
       <a href="/sitemap.xml">Sitemap</a> ·
       <a href="/robots.txt">Robots</a>
     </div>
-    <p class="footer-copy">© {{ current_year }} AIFeed · Built with ❤️ for the AI community</p>
+    <p class="footer-copy">© {{ current_year }} DeepTrendLab · Built with ❤️ for the AI community</p>
   </div>
 </footer>
 

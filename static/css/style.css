@@ -46,6 +46,12 @@ img { max-width: 100%; }
   -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
 }
 .navbar-brand .icon { font-size: 1.6rem; }
+.brand-icon { flex-shrink: 0; }
+.brand-text {
+  background: linear-gradient(135deg, #a5b4fc, #67e8f9);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.brand-accent { font-weight: 900; }
 .navbar-search { flex: 1; max-width: 480px; margin-left: auto; position: relative; }
 .navbar-search input {
   width: 100%; background: var(--bg3); border: 1px solid var(--border);
