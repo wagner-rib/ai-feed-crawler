@@ -272,13 +272,6 @@ AI_FEEDS = [
         "logo": "📉",
     },
     {
-        "name": "Simon Willison",
-        "rss_url": "https://simonwillison.net/atom/everything/",
-        "website_url": "https://simonwillison.net",
-        "category": "Newsletters",
-        "logo": "🦎",
-    },
-    {
         "name": "Ben's Bites",
         "rss_url": "https://www.bensbites.com/feed",
         "website_url": "https://www.bensbites.com",
