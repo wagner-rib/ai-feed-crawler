@@ -25,16 +25,6 @@ SITE_URL = os.environ.get("SITE_URL", "http://localhost:8080")
 PER_PAGE = 24
 
 
-@app.template_filter("source_logo")
-def source_logo_filter(source_name: str) -> str:
-    """Return the local logo path for a given source name."""
-    import re
-    slug = source_name.lower()
-    slug = slug.replace(" ", "_").replace("—", "").replace("/", "").replace(".", "")
-    slug = re.sub(r"[^\w]", "", slug).strip("_")
-    return f"/static/img/logos/{slug}.png"
-
-
 # ---------------------------------------------------------------------------
 # Database helpers
 # ---------------------------------------------------------------------------
@@ -93,11 +83,7 @@ def from_json_filter(s):
 
 @app.context_processor
 def inject_globals():
-    return {
-        "site_url": SITE_URL,
-        "current_year": datetime.now().year,
-        "all_categories": CATEGORIES,
-    }
+    return {"site_url": SITE_URL, "current_year": datetime.now().year}
 
 
 # ---------------------------------------------------------------------------

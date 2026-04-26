@@ -7,30 +7,47 @@
 
 {% block content %}
 
-<h1 class="visually-hidden">The AI Feed You Actually Need — Top 50 AI Sources, Research &amp; News</h1>
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-tag">
+    <span class="live-dot"></span>
+    Live AI Intelligence Hub
+  </div>
+  <h1>The AI Feed You<br>Actually Need</h1>
+  <p>AI-written digests and original insights from the <strong>top 50 AI sources</strong> worldwide — research, labs, tools &amp; news in one place.</p>
 
-<div class="stats-strip">
-  <div class="stats-strip-inner">
-    <span class="stat-item">
-      <span class="stat-num count-up" data-target="{{ stats.total }}">{{ stats.total }}</span>
-      <span class="stat-lbl">Articles</span>
-    </span>
-    <span class="stat-sep"></span>
-    <span class="stat-item">
-      <span class="stat-num">50</span>
-      <span class="stat-lbl">Sources</span>
-    </span>
-    <span class="stat-sep"></span>
-    <span class="stat-item">
-      <span class="stat-num">{{ stats.by_category | length }}</span>
-      <span class="stat-lbl">Categories</span>
-    </span>
-    <span class="stat-sep"></span>
-    <span class="stat-item">
-      <span class="stat-num" id="refresh-countdown" data-seconds="7200">02:00:00</span>
-      <span class="stat-lbl">Next Update</span>
-    </span>
-    <span class="stat-live"><span class="live-dot"></span> Live</span>
+  <div class="hero-stats">
+    <div class="hero-stat">
+      <span class="num count-up" data-target="{{ stats.total }}">{{ stats.total }}</span>
+      <span class="label">Articles Indexed</span>
+    </div>
+    <div class="hero-divider"></div>
+    <div class="hero-stat">
+      <span class="num">50</span>
+      <span class="label">AI Sources</span>
+    </div>
+    <div class="hero-divider"></div>
+    <div class="hero-stat">
+      <span class="num">{{ stats.by_category | length }}</span>
+      <span class="label">Categories</span>
+    </div>
+    <div class="hero-divider"></div>
+    <div class="hero-stat">
+      <span class="num" id="refresh-countdown" data-seconds="7200">02:00:00</span>
+      <span class="label">Next Update</span>
+    </div>
+  </div>
+</section>
+
+<!-- Filter Bar -->
+<div class="filter-bar">
+  <div class="filter-inner">
+    <span class="filter-label">Filter:</span>
+    <a href="/" class="filter-btn {{ 'active' if not selected_category and not tag | default('') }}">All</a>
+    {% for cat in categories %}
+      <a href="/?category={{ cat | urlencode }}{% if query %}&q={{ query | urlencode }}{% endif %}"
+         class="filter-btn {{ 'active' if selected_category == cat }}">{{ cat }}</a>
+    {% endfor %}
   </div>
 </div>
 
@@ -72,13 +89,7 @@
                itemprop="image"
                onerror="this.closest('.card').querySelector('.card-image-placeholder') ? (this.style.display='none') : null; this.onerror=null;" />
         {% else %}
-          <div class="card-image-placeholder {{ 'card-image-featured' if is_featured }}">
-            <img src="{{ article.source_name | source_logo }}"
-                 alt="{{ article.source_name }}"
-                 class="card-source-logo"
-                 onerror="this.style.display='none';this.nextElementSibling.style.display='inline'">
-            <span style="display:none">{{ article.logo }}</span>
-          </div>
+          <div class="card-image-placeholder {{ 'card-image-featured' if is_featured }}">{{ article.logo }}</div>
         {% endif %}
 
         <div class="card-body">

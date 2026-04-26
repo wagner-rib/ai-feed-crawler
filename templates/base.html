@@ -70,6 +70,11 @@
       AIFeed
     </a>
 
+    <div class="navbar-links">
+      <a href="/" class="{{ 'active' if request.path == '/' }}">Latest</a>
+      <a href="/sources" class="{{ 'active' if request.path == '/sources' }}">Sources</a>
+    </div>
+
     <form class="navbar-search" action="/" method="get" role="search">
       <span class="search-icon">🔍</span>
       <input type="search" name="q" placeholder="Search AI news, papers, tools…"
@@ -78,19 +83,6 @@
     </form>
   </div>
 </nav>
-
-<!-- Category strip — visible on every page -->
-<div class="cat-strip">
-  <div class="cat-strip-inner">
-    <a href="/" class="cat-strip-btn {{ 'active' if request.path == '/' and not request.args.get('category') }}">All</a>
-    {% for cat in all_categories %}
-    <a href="/?category={{ cat | urlencode }}"
-       class="cat-strip-btn {{ 'active' if request.args.get('category') == cat }}">{{ cat }}</a>
-    {% endfor %}
-    <span class="cat-strip-sep"></span>
-    <a href="/sources" class="cat-strip-btn {{ 'active' if request.path == '/sources' }}">Sources</a>
-  </div>
-</div>
 
 {% block content %}{% endblock %}
 

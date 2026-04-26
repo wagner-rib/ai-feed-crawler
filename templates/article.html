@@ -102,15 +102,6 @@
   <img src="{{ article.image_url }}" alt="{{ article.title }}"
        class="article-hero-image" loading="eager" itemprop="image" />
 </div>
-{% else %}
-<div class="article-image-wrap article-hero-placeholder">
-  <img src="{{ article.source_name | source_logo }}"
-       alt="{{ article.source_name }}"
-       class="hero-source-logo"
-       onerror="this.style.display='none';this.nextElementSibling.style.display='inline'">
-  <span class="hero-placeholder-logo" style="display:none">{{ article.logo }}</span>
-  <span class="hero-placeholder-source">{{ article.source_name }}</span>
-</div>
 {% endif %}
 
 <!-- Main layout -->
@@ -137,17 +128,6 @@
       {% for para in text.split('\n\n') %}
         {% if para.strip() %}<p>{{ para.strip() }}</p>{% endif %}
       {% endfor %}
-    </div>
-
-    {% elif article.processed == 0 or article.processed == None %}
-    <!-- Not yet processed — content is being fetched -->
-    <div class="paywall-notice">
-      <div class="paywall-icon">⏳</div>
-      <h2>Content loading</h2>
-      <p>This article is being fetched and processed. Check back in a few minutes, or read it directly on <strong>{{ article.source_name }}</strong>.</p>
-      <a href="{{ article.url }}" target="_blank" rel="noopener" class="btn-lg">
-        Read on {{ article.source_name }} →
-      </a>
     </div>
 
     {% else %}
