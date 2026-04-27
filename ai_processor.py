@@ -1139,7 +1139,7 @@ Write 4-6 sections grouping related stories by theme. Be opinionated and analyti
     for r in rows[:30]:
         art_url = f"/article/{r['slug']}" if r['slug'] else r['url']
         content_parts.append(
-            f'<li><a href="{art_url}">{r["title"]}</a> <small>— {r["source_name"]}</small></li>'
+            f'<li><a href="{art_url}">{r["title"]}</a></li>'
         )
     content_parts.append("</ul>")
 

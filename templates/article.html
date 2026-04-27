@@ -177,12 +177,12 @@
     {% endif %}
 
     <!-- Source credit at bottom -->
+    {% if article.source_name != 'DeepTrendLab' %}
     <div class="source-credit">
       <div class="source-credit-inner">
         <span class="source-credit-logo">{{ article.logo }}</span>
         <div class="source-credit-text">
           <strong>Originally published on <a href="{{ article.source_url }}" target="_blank" rel="noopener">{{ article.source_name }}</a>.</strong><br>
-          {% if article.author %}By {{ article.author }}.{% endif %}
           All content and rights belong to the original publisher.
           <a href="{{ article.url }}" target="_blank" rel="noopener">Read the full article here.</a>
         </div>
@@ -196,6 +196,7 @@
         </div>
       </div>
     </div>
+    {% endif %}
 
     <!-- Related articles -->
     {% if related %}
