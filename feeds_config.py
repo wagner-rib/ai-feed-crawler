@@ -152,13 +152,6 @@ AI_FEEDS = [
         "logo": "🔭",
     },
     {
-        "name": "IEEE Spectrum — AI",
-        "rss_url": "https://spectrum.ieee.org/feeds/topic/artificial-intelligence.rss",
-        "website_url": "https://spectrum.ieee.org/artificial-intelligence",
-        "category": "News",
-        "logo": "⚙️",
-    },
-    {
         "name": "ZDNet — AI",
         "rss_url": "https://www.zdnet.com/topic/artificial-intelligence/rss.xml",
         "website_url": "https://www.zdnet.com/topic/artificial-intelligence/",
