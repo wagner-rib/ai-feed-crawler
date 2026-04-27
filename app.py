@@ -17,6 +17,7 @@ import humanize
 from crawler import init_db, crawl_all, get_stats, DB_PATH, backfill_slugs
 from feeds_config import AI_FEEDS, CATEGORIES
 from ai_processor import init_db_v2, process_batch, tag_untagged_batch, generate_digest
+from social import post_new_articles_to_twitter, post_digest_to_twitter
 
 app = Flask(__name__)
 app.config["JSON_SORT_KEYS"] = False
@@ -391,6 +392,17 @@ def api_process_all():
     return jsonify({"status": "started", "message": "Processing all articles in background"})
 
 
+@app.route("/api/tweet")
+def api_tweet():
+    """Post unposted articles to Twitter. ?slug=xxx to post a specific article."""
+    slug = request.args.get("slug")
+    if slug:
+        ok = post_digest_to_twitter(slug)
+        return jsonify({"status": "ok" if ok else "failed", "slug": slug})
+    n = post_new_articles_to_twitter(limit=request.args.get("limit", 3, type=int))
+    return jsonify({"status": "ok", "posted": n})
+
+
 @app.route("/api/digest")
 def api_digest():
     period = request.args.get("period", "daily")
@@ -413,6 +425,7 @@ def crawl_and_process():
     crawl_all()
     process_batch(limit=60)
     tag_untagged_batch(limit=100)
+    post_new_articles_to_twitter(limit=3)
 
 
 def run_daily_digest():
