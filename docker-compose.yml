@@ -10,6 +10,7 @@ services:
       - PYTHONUNBUFFERED=1
       - SITE_URL=${SITE_URL:-https://deeptrendlab.com}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - INDEXNOW_KEY=c62eebf2d75640b5a4812b44c5bb76db
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/api/stats"]
       interval: 60s

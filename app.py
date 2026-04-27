@@ -339,6 +339,17 @@ def indexnow_key_file(key):
     return Response("Not found", status=404)
 
 
+@app.route("/google79054ec901bfd214.html")
+def google_verification():
+    return Response("google-site-verification: google79054ec901bfd214.html", mimetype="text/html")
+
+
+@app.route("/BingSiteAuth.xml")
+def bing_verification():
+    xml = '<?xml version="1.0"?>\n<users>\n    <user>28601A20C480A9ABD60269751B5B97F8</user>\n</users>'
+    return Response(xml, mimetype="application/xml")
+
+
 # ---------------------------------------------------------------------------
 # Routes — API
 # ---------------------------------------------------------------------------

@@ -1084,6 +1084,37 @@ def tag_untagged_batch(limit: int = 50) -> int:
     return count
 
 
+def enrich_tags_batch(limit: int = 50) -> int:
+    """Run Claude on ALL processed articles and merge new tags with existing ones."""
+    with get_db() as conn:
+        rows = conn.execute(
+            """SELECT uid, title, source_name, full_text, summary, tags
+               FROM articles
+               WHERE processed = 2
+               ORDER BY published DESC LIMIT ?""",
+            (limit,),
+        ).fetchall()
+
+    count = 0
+    for row in rows:
+        text = row["full_text"] or row["summary"] or ""
+        new_tags = _call_claude_tags(row["title"], text, row["source_name"])
+        if new_tags:
+            existing = json.loads(row["tags"]) if row["tags"] else []
+            merged = list(dict.fromkeys(new_tags + [t for t in existing if t not in new_tags]))
+            with get_db() as conn:
+                conn.execute(
+                    "UPDATE articles SET tags = ? WHERE uid = ?",
+                    (json.dumps(merged[:8]), row["uid"]),
+                )
+            count += 1
+        time.sleep(0.3)
+
+    if count:
+        log.info("Enriched tags for %d articles", count)
+    return count
+
+
 # ---------------------------------------------------------------------------
 # Process pipeline
 # ---------------------------------------------------------------------------
