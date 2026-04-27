@@ -245,13 +245,6 @@ AI_FEEDS = [
     },
     # === Safety & Alignment ===
     {
-        "name": "AI Alignment Forum",
-        "rss_url": "https://www.alignmentforum.org/feed.xml",
-        "website_url": "https://www.alignmentforum.org",
-        "category": "Safety",
-        "logo": "🛡️",
-    },
-    {
         "name": "LessWrong",
         "rss_url": "https://www.lesswrong.com/feed.xml?view=curated-rss",
         "website_url": "https://www.lesswrong.com",
