@@ -152,13 +152,6 @@ AI_FEEDS = [
         "logo": "🔭",
     },
     {
-        "name": "ZDNet — AI",
-        "rss_url": "https://www.zdnet.com/topic/artificial-intelligence/rss.xml",
-        "website_url": "https://www.zdnet.com/topic/artificial-intelligence/",
-        "category": "News",
-        "logo": "📡",
-    },
-    {
         "name": "AI Business",
         "rss_url": "https://aibusiness.com/rss.xml",
         "website_url": "https://aibusiness.com",
