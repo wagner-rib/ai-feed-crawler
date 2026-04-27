@@ -409,10 +409,13 @@ def not_found(e):
 # Scheduler
 # ---------------------------------------------------------------------------
 
-def crawl_and_process():
+def do_crawl():
     crawl_all()
+
+
+def do_process():
     process_batch(limit=60)
-    tag_untagged_batch(limit=100)
+    tag_untagged_batch(limit=50)
 
 
 def run_daily_digest():
@@ -427,8 +430,12 @@ def run_monthly_digest():
 
 def start_scheduler():
     scheduler = BackgroundScheduler(daemon=True)
-    scheduler.add_job(crawl_and_process, "interval", hours=2,
-                      id="crawl_process", next_run_time=datetime.now())
+    # Crawl every 2 hours
+    scheduler.add_job(do_crawl, "interval", hours=2,
+                      id="crawl", next_run_time=datetime.now())
+    # Process every 30 minutes — catches new articles quickly
+    scheduler.add_job(do_process, "interval", minutes=30,
+                      id="process", next_run_time=datetime.now())
     # Daily digest at 08:00 UTC
     scheduler.add_job(run_daily_digest, "cron", hour=8, minute=0, id="daily_digest")
     # Weekly digest every Sunday at 09:00 UTC
@@ -436,7 +443,7 @@ def start_scheduler():
     # Monthly digest on 1st of each month at 10:00 UTC
     scheduler.add_job(run_monthly_digest, "cron", day=1, hour=10, minute=0, id="monthly_digest")
     scheduler.start()
-    app.logger.info("Scheduler started — crawl every 2h, digests daily/weekly/monthly")
+    app.logger.info("Scheduler started — crawl every 2h, process every 30min")
 
 
 # ---------------------------------------------------------------------------
