@@ -2,7 +2,8 @@
 <rss version="2.0"
      xmlns:atom="http://www.w3.org/2005/Atom"
      xmlns:media="http://search.yahoo.com/mrss/"
-     xmlns:dc="http://purl.org/dc/elements/1.1/">
+     xmlns:dc="http://purl.org/dc/elements/1.1/"
+     xmlns:content="http://purl.org/rss/1.0/modules/content/">
   <channel>
     <title>DeepTrendLab — AI News &amp; Research</title>
     <link>{{ site_url }}/</link>
@@ -10,18 +11,45 @@
     <language>en-us</language>
     <atom:link href="{{ site_url }}/rss.xml" rel="self" type="application/rss+xml" />
     <ttl>120</ttl>
+    <image>
+      <url>{{ site_url }}/static/img/og-default.png</url>
+      <title>DeepTrendLab</title>
+      <link>{{ site_url }}/</link>
+    </image>
     {% for a in articles %}
     <item>
       <title><![CDATA[{{ a.title }}]]></title>
       <link>{{ site_url }}/article/{{ a.slug }}</link>
       <guid isPermaLink="true">{{ site_url }}/article/{{ a.slug }}</guid>
+
       <description><![CDATA[{{ a.summary or '' }}]]></description>
+
+      {% if a.image_url %}
+      <enclosure url="{{ a.image_url }}" type="image/jpeg" length="0" />
+      <media:content url="{{ a.image_url }}" medium="image">
+        <media:title type="plain"><![CDATA[{{ a.title }}]]></media:title>
+        <media:description type="plain"><![CDATA[{{ a.summary or '' }}]]></media:description>
+      </media:content>
+      <media:thumbnail url="{{ a.image_url }}" />
+      {% endif %}
+
       <pubDate>{{ a.published | rssdate }}</pubDate>
       <category><![CDATA[{{ a.category }}]]></category>
-      <dc:source>{{ a.source_name }}</dc:source>
-      {% if a.image_url %}
-      <media:content url="{{ a.image_url }}" medium="image" />
+
+      {% if a.tags %}
+      {% for tag in a.tags | from_json %}
+      <category><![CDATA[{{ tag }}]]></category>
+      {% endfor %}
       {% endif %}
+
+      <dc:creator><![CDATA[{{ a.author or a.source_name }}]]></dc:creator>
+      <dc:source>{{ a.source_url }}</dc:source>
+
+      {% if a.reading_time %}
+      <dc:description>{{ a.reading_time }} min read · {{ a.category }} · {{ a.source_name }}</dc:description>
+      {% endif %}
+
+      <source url="{{ a.source_url }}"><![CDATA[{{ a.source_name }}]]></source>
     </item>
     {% endfor %}
   </channel>

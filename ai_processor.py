@@ -6,13 +6,14 @@ Article processor:
   4. Calls Claude API only for tags + card excerpt
 """
 
+import hashlib
 import json
 import logging
 import os
 import re
 import sqlite3
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from urllib.parse import urljoin, urlparse
 
 import bleach
@@ -1007,6 +1008,171 @@ def fetch_and_clean(url: str, article_title: str = "") -> dict:
               len(result["plain_text"].split()),
               len(clean_soup.find_all("img")))
     return result
+
+
+# ---------------------------------------------------------------------------
+# Digest generator — daily / weekly / monthly
+# ---------------------------------------------------------------------------
+
+_DIGEST_IMAGES = {
+    "daily":   "https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=1200&q=80",
+    "weekly":  "https://images.unsplash.com/photo-1677442135703-1787eea5ce01?w=1200&q=80",
+    "monthly": "https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=1200&q=80",
+}
+
+_DIGEST_DAYS = {"daily": 1, "weekly": 7, "monthly": 30}
+
+_DIGEST_SYSTEM = (
+    "You are the editorial voice of DeepTrendLab, an AI news aggregator. "
+    "Write sharp, informed, opinionated editorial digests. "
+    "Use clear section headings. No filler. No bullet lists — write in paragraphs. "
+    "Assume readers follow AI closely. Be concise but substantive."
+)
+
+
+def generate_digest(period: str = "daily", site_url: str = "https://deeptrendlab.com") -> bool:
+    """Generate a daily/weekly/monthly AI digest and insert it as an original article."""
+    if not ANTHROPIC_API_KEY:
+        log.warning("Digest skipped — no API key")
+        return False
+
+    days = _DIGEST_DAYS.get(period, 1)
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+
+    with get_db() as conn:
+        rows = conn.execute(
+            """SELECT title, summary, source_name, category, url, slug
+               FROM articles
+               WHERE published >= ? AND source_name != 'DeepTrendLab'
+               ORDER BY published DESC LIMIT 60""",
+            (cutoff,),
+        ).fetchall()
+
+    if len(rows) < 3:
+        log.info("Digest skipped — not enough articles (%d) for period=%s", len(rows), period)
+        return False
+
+    # Build article list for prompt
+    article_lines = "\n".join(
+        f"- [{r['source_name']}] {r['title']}"
+        + (f": {r['summary'][:120]}" if r['summary'] else "")
+        for r in rows
+    )
+
+    now_dt = datetime.now(timezone.utc)
+    if period == "daily":
+        date_label = now_dt.strftime("%B %d, %Y")
+        period_label = "today"
+    elif period == "weekly":
+        date_label = f"Week of {now_dt.strftime('%B %d, %Y')}"
+        period_label = "this week"
+    else:
+        date_label = now_dt.strftime("%B %Y")
+        period_label = "this month"
+
+    prompt = f"""Here are the AI news articles published {period_label} ({len(rows)} articles):
+
+{article_lines}
+
+Write a {period} AI digest editorial post for DeepTrendLab covering {date_label}.
+
+Return a JSON object:
+{{
+  "title": "<compelling headline, include date>",
+  "summary": "<2 sentence summary for social sharing, max 200 chars>",
+  "sections": [
+    {{"heading": "<section heading>", "body": "<2-3 paragraph editorial, HTML <p> tags only>"}},
+    ...
+  ],
+  "tags": ["<tag1>", "<tag2>", "<tag3>", "<tag4>", "<tag5>"]
+}}
+
+Write 4-6 sections grouping related stories by theme. Be opinionated and analytical."""
+
+    try:
+        resp = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": ANTHROPIC_API_KEY,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": "claude-haiku-4-5-20251001",
+                "max_tokens": 2000,
+                "system": _DIGEST_SYSTEM,
+                "messages": [{"role": "user", "content": prompt}],
+            },
+            timeout=60,
+        )
+        resp.raise_for_status()
+        raw = resp.json()["content"][0]["text"].strip()
+        if raw.startswith("```"):
+            raw = re.sub(r"^```[a-z]*\n?", "", raw).rstrip("`").strip()
+        data = json.loads(raw)
+    except Exception as exc:
+        log.error("Digest generation failed (%s): %s", period, exc)
+        return False
+
+    title   = data.get("title", f"AI {period.title()} Digest — {date_label}")
+    summary = data.get("summary", "")
+    tags    = json.dumps(data.get("tags", [period, "digest", "ai news"]))
+    sections = data.get("sections", [])
+
+    # Build content HTML with internal links
+    with get_db() as conn:
+        slug_rows = conn.execute(
+            "SELECT slug, title FROM articles WHERE published >= ? AND source_name != 'DeepTrendLab'",
+            (cutoff,),
+        ).fetchall()
+    slug_map = {r["title"].lower(): r["slug"] for r in slug_rows}
+
+    content_parts = []
+    for s in sections:
+        heading = s.get("heading", "")
+        body    = s.get("body", "")
+        content_parts.append(f"<h2>{heading}</h2>\n{body}")
+
+    # Append linked article index at bottom
+    content_parts.append("<h2>All Stories This Period</h2>")
+    content_parts.append("<ul>")
+    for r in rows[:30]:
+        art_url = f"/article/{r['slug']}" if r['slug'] else r['url']
+        content_parts.append(
+            f'<li><a href="{art_url}">{r["title"]}</a> <small>— {r["source_name"]}</small></li>'
+        )
+    content_parts.append("</ul>")
+
+    content_html = "\n".join(content_parts)
+
+    # Generate slug
+    from slugify import slugify as _slugify
+    slug_base = _slugify(f"ai-{period}-digest-{date_label}", max_length=70, word_boundary=True)
+    uid = hashlib.md5(slug_base.encode()).hexdigest()[:16]
+    art_url = f"{site_url}/article/{slug_base}"
+
+    with get_db() as conn:
+        conn.execute(
+            """INSERT OR REPLACE INTO articles
+               (uid, slug, title, url, summary, image_url, source_name, source_url,
+                category, logo, published, fetched_at, content_html, full_text,
+                tags, processed, reading_time, author)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                uid, slug_base, title, art_url, summary,
+                _DIGEST_IMAGES.get(period, _DIGEST_IMAGES["daily"]),
+                "DeepTrendLab", site_url,
+                "News", "🔬",
+                datetime.now(timezone.utc).isoformat(),
+                datetime.now(timezone.utc).isoformat(),
+                content_html, summary,
+                tags, 2, max(2, len(content_html.split()) // 200),
+                "DeepTrendLab Editorial",
+            ),
+        )
+
+    log.info("Digest published: %s (%s)", title, period)
+    return True
 
 
 # ---------------------------------------------------------------------------

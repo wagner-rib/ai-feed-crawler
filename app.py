@@ -16,7 +16,7 @@ import humanize
 
 from crawler import init_db, crawl_all, get_stats, DB_PATH, backfill_slugs
 from feeds_config import AI_FEEDS, CATEGORIES
-from ai_processor import init_db_v2, process_batch, tag_untagged_batch
+from ai_processor import init_db_v2, process_batch, tag_untagged_batch, generate_digest
 
 app = Flask(__name__)
 app.config["JSON_SORT_KEYS"] = False
@@ -311,7 +311,8 @@ def sitemap_news():
 def rss_feed():
     db = get_db()
     articles = db.execute(
-        """SELECT slug, title, summary, image_url, source_name, category, published, url
+        """SELECT slug, title, summary, image_url, source_name, source_url,
+                  category, published, url, author, reading_time, tags
            FROM articles ORDER BY published DESC LIMIT 50"""
     ).fetchall()
     xml = render_template("rss.xml", articles=articles, site_url=SITE_URL)
@@ -390,6 +391,15 @@ def api_process_all():
     return jsonify({"status": "started", "message": "Processing all articles in background"})
 
 
+@app.route("/api/digest")
+def api_digest():
+    period = request.args.get("period", "daily")
+    if period not in ("daily", "weekly", "monthly"):
+        return jsonify({"error": "period must be daily, weekly, or monthly"}), 400
+    ok = generate_digest(period, SITE_URL)
+    return jsonify({"status": "ok" if ok else "skipped", "period": period})
+
+
 @app.errorhandler(404)
 def not_found(e):
     return render_template("404.html"), 404
@@ -405,12 +415,28 @@ def crawl_and_process():
     tag_untagged_batch(limit=100)
 
 
+def run_daily_digest():
+    generate_digest("daily", SITE_URL)
+
+def run_weekly_digest():
+    generate_digest("weekly", SITE_URL)
+
+def run_monthly_digest():
+    generate_digest("monthly", SITE_URL)
+
+
 def start_scheduler():
     scheduler = BackgroundScheduler(daemon=True)
     scheduler.add_job(crawl_and_process, "interval", hours=2,
                       id="crawl_process", next_run_time=datetime.now())
+    # Daily digest at 08:00 UTC
+    scheduler.add_job(run_daily_digest, "cron", hour=8, minute=0, id="daily_digest")
+    # Weekly digest every Sunday at 09:00 UTC
+    scheduler.add_job(run_weekly_digest, "cron", day_of_week="sun", hour=9, minute=0, id="weekly_digest")
+    # Monthly digest on 1st of each month at 10:00 UTC
+    scheduler.add_job(run_monthly_digest, "cron", day=1, hour=10, minute=0, id="monthly_digest")
     scheduler.start()
-    app.logger.info("Scheduler started — crawl+process every 2 hours")
+    app.logger.info("Scheduler started — crawl every 2h, digests daily/weekly/monthly")
 
 
 # ---------------------------------------------------------------------------
