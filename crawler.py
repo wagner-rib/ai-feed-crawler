@@ -3,6 +3,8 @@
 import sqlite3
 import logging
 import hashlib
+import json
+import os
 import time
 import re
 from datetime import datetime, timezone
@@ -17,6 +19,8 @@ from slugify import slugify
 from feeds_config import AI_FEEDS
 
 DB_PATH = Path("/data/articles.db")
+SITE_URL = os.environ.get("SITE_URL", "https://deeptrendlab.com").rstrip("/")
+INDEXNOW_KEY = os.environ.get("INDEXNOW_KEY", "")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
 
@@ -199,24 +203,41 @@ def crawl_feed(feed_cfg: dict) -> int:
             image_url = _first_image(entry, url)
             published = _parse_date(entry)
 
+            # Extract tags from RSS feed (lowercase, dedupe, max 8)
+            rss_tags = []
+            for t in entry.get("tags", []):
+                term = (t.get("term") or "").strip().lower()
+                # Skip generic/useless terms
+                if term and len(term) > 1 and term not in {"uncategorized", "featured", "news", "tech"}:
+                    rss_tags.append(term)
+            rss_tags = list(dict.fromkeys(rss_tags))[:8]  # dedupe, keep order
+            rss_tags_json = json.dumps(rss_tags) if rss_tags else None
+
             try:
                 conn.execute(
                     """
                     INSERT OR IGNORE INTO articles
                         (uid, slug, title, url, summary, image_url,
                          source_name, source_url, category, logo,
-                         published, fetched_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+                         published, fetched_at, tags)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
                     """,
                     (
                         uid, slug, title, link, summary, image_url,
                         feed_cfg["name"], feed_cfg["website_url"],
                         feed_cfg["category"], feed_cfg.get("logo", "📰"),
                         published, datetime.now(timezone.utc).isoformat(),
+                        rss_tags_json,
                     ),
                 )
                 if conn.execute("SELECT changes()").fetchone()[0]:
                     saved += 1
+                elif rss_tags_json:
+                    # Article already exists — backfill RSS tags if it has none yet
+                    conn.execute(
+                        "UPDATE articles SET tags = ? WHERE uid = ? AND (tags IS NULL OR tags = '[]' OR tags = '')",
+                        (rss_tags_json, uid),
+                    )
             except Exception as exc:
                 log.debug("Insert failed for %s: %s", link, exc)
 
@@ -224,12 +245,46 @@ def crawl_feed(feed_cfg: dict) -> int:
     return saved
 
 
+def _ping_indexnow(slugs: list[str]) -> None:
+    """Notify IndexNow (Bing/Yandex) about new URLs. Silently skips if key not set."""
+    if not INDEXNOW_KEY or not slugs:
+        return
+    urls = [f"{SITE_URL}/article/{s}" for s in slugs]
+    try:
+        resp = requests.post(
+            "https://api.indexnow.org/indexnow",
+            json={"host": SITE_URL.replace("https://", "").replace("http://", ""),
+                  "key": INDEXNOW_KEY,
+                  "keyLocation": f"{SITE_URL}/{INDEXNOW_KEY}.txt",
+                  "urlList": urls[:10000]},
+            timeout=10,
+        )
+        log.info("IndexNow pinged %d URLs — status %d", len(urls), resp.status_code)
+    except Exception as exc:
+        log.debug("IndexNow ping failed: %s", exc)
+
+
 def crawl_all():
     log.info("=== Starting full crawl of %d feeds ===", len(AI_FEEDS))
     total = 0
+    new_slugs = []
     for feed in AI_FEEDS:
-        total += crawl_feed(feed)
-        time.sleep(0.5)  # gentle rate limiting
+        n = crawl_feed(feed)
+        total += n
+        time.sleep(0.5)
+    # Collect slugs of articles added in this crawl run to ping IndexNow
+    if total > 0:
+        try:
+            with get_db() as conn:
+                cutoff = datetime.now(timezone.utc).isoformat()[:16]  # last minute
+                rows = conn.execute(
+                    "SELECT slug FROM articles WHERE fetched_at >= ? AND slug IS NOT NULL",
+                    (cutoff,),
+                ).fetchall()
+                new_slugs = [r["slug"] for r in rows if r["slug"]]
+        except Exception:
+            pass
+        _ping_indexnow(new_slugs)
     log.info("=== Crawl complete — %d new articles ===", total)
     return total
 

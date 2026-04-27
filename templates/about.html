@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}About DeepTrendLab — AI News Aggregator{% endblock %}
+{% block description %}DeepTrendLab is an independent AI news aggregator covering research papers, lab announcements, tools and insights from the top 50 AI sources — updated every 2 hours.{% endblock %}
+{% block canonical %}{{ site_url }}/about{% endblock %}
+
+{% block structured_data %}
+{{ super() }}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "AboutPage",
+  "name": "About DeepTrendLab",
+  "url": "{{ site_url }}/about",
+  "description": "DeepTrendLab is an independent AI news aggregator.",
+  "publisher": {
+    "@type": "Organization",
+    "name": "DeepTrendLab",
+    "url": "{{ site_url }}"
+  }
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="static-page">
+  <div class="static-page-inner">
+
+    <h1>About DeepTrendLab</h1>
+
+    <p>
+      <strong>DeepTrendLab</strong> is an independent news aggregator dedicated to the AI and machine learning ecosystem.
+      We monitor over 50 of the most respected sources in the field — research labs, tech publishers, academic blogs,
+      and industry newsletters — and surface the most relevant content in one place, updated every 2 hours.
+    </p>
+
+    <h2>What we cover</h2>
+    <p>
+      From foundational research papers and model releases to tools, policy debates, and real-world applications.
+      Our categories span LLMs, computer vision, robotics, AI policy, MLOps, and more.
+    </p>
+
+    <h2>Our sources</h2>
+    <p>
+      We curate from publishers including Anthropic, OpenAI, Google DeepMind, Hugging Face, ArsTechnica,
+      TechCrunch, MIT Technology Review, The Verge, and many others.
+      All original content and rights belong to the respective publishers.
+      <a href="/sources">See the full source list →</a>
+    </p>
+
+    <h2>How it works</h2>
+    <p>
+      Articles are fetched automatically from RSS feeds every 2 hours. Full article content is extracted
+      and cleaned from the original source pages. Topic tags are generated to help with discovery.
+      No content is modified or summarised — what you read is what the original publisher wrote.
+    </p>
+
+    <h2>Contact</h2>
+    <p>
+      Questions, feedback, or source suggestions:
+      <a href="mailto:hello@deeptrendlab.com">hello@deeptrendlab.com</a>
+    </p>
+
+  </div>
+</div>
+{% endblock %}

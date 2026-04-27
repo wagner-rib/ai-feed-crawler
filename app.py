@@ -16,12 +16,13 @@ import humanize
 
 from crawler import init_db, crawl_all, get_stats, DB_PATH, backfill_slugs
 from feeds_config import AI_FEEDS, CATEGORIES
-from ai_processor import init_db_v2, process_batch
+from ai_processor import init_db_v2, process_batch, tag_untagged_batch
 
 app = Flask(__name__)
 app.config["JSON_SORT_KEYS"] = False
 
 SITE_URL = os.environ.get("SITE_URL", "http://localhost:8080")
+INDEXNOW_KEY = os.environ.get("INDEXNOW_KEY", "")
 PER_PAGE = 24
 
 
@@ -91,6 +92,19 @@ def from_json_filter(s):
         return []
 
 
+@app.template_filter("rssdate")
+def rssdate_filter(iso_str):
+    if not iso_str:
+        return ""
+    try:
+        dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.strftime("%a, %d %b %Y %H:%M:%S +0000")
+    except Exception:
+        return ""
+
+
 @app.context_processor
 def inject_globals():
     return {
@@ -120,8 +134,8 @@ def index():
         where.append("source_name = ?")
         params.append(source)
     if q:
-        where.append("(title LIKE ? OR summary LIKE ? OR ai_digest LIKE ? OR tags LIKE ?)")
-        params.extend([f"%{q}%"] * 4)
+        where.append("(title LIKE ? OR summary LIKE ? OR tags LIKE ?)")
+        params.extend([f"%{q}%"] * 3)
 
     where_clause = ("WHERE " + " AND ".join(where)) if where else ""
 
@@ -222,6 +236,8 @@ def tag_page(tag):
     ).fetchone()[0]
     total_pages = max(1, math.ceil(total / PER_PAGE))
     stats = get_stats()
+    prev_url = f"/tag/{tag}?page={page - 1}" if page > 1 else None
+    next_url = f"/tag/{tag}?page={page + 1}" if page < total_pages else None
     return render_template(
         "index.html",
         articles=articles,
@@ -236,12 +252,24 @@ def tag_page(tag):
         stats=stats,
         feeds=AI_FEEDS,
         tag=tag,
+        prev_url=prev_url,
+        next_url=next_url,
     )
 
 
 @app.route("/sources")
 def sources():
     return render_template("sources.html", feeds=AI_FEEDS, categories=CATEGORIES)
+
+
+@app.route("/about")
+def about():
+    return render_template("about.html")
+
+
+@app.route("/privacy")
+def privacy():
+    return render_template("privacy.html")
 
 
 # ---------------------------------------------------------------------------
@@ -261,7 +289,7 @@ def sitemap():
     articles = db.execute(
         "SELECT uid, slug, published FROM articles ORDER BY published DESC LIMIT 5000"
     ).fetchall()
-    xml = render_template("sitemap.xml", articles=articles, site_url=SITE_URL)
+    xml = render_template("sitemap.xml", articles=articles, site_url=SITE_URL, categories=CATEGORIES)
     return Response(xml, mimetype="application/xml")
 
 
@@ -279,6 +307,17 @@ def sitemap_news():
     return Response(xml, mimetype="application/xml")
 
 
+@app.route("/rss.xml")
+def rss_feed():
+    db = get_db()
+    articles = db.execute(
+        """SELECT slug, title, summary, image_url, source_name, category, published, url
+           FROM articles ORDER BY published DESC LIMIT 50"""
+    ).fetchall()
+    xml = render_template("rss.xml", articles=articles, site_url=SITE_URL)
+    return Response(xml, mimetype="application/rss+xml")
+
+
 @app.route("/robots.txt")
 def robots():
     txt = f"""User-agent: *
@@ -288,8 +327,16 @@ Disallow: /api/
 Sitemap: {SITE_URL}/sitemap_index.xml
 Sitemap: {SITE_URL}/sitemap.xml
 Sitemap: {SITE_URL}/sitemap-news.xml
+Sitemap: {SITE_URL}/rss.xml
 """
     return Response(txt, mimetype="text/plain")
+
+
+@app.route("/<key>.txt")
+def indexnow_key_file(key):
+    if INDEXNOW_KEY and key == INDEXNOW_KEY:
+        return Response(INDEXNOW_KEY, mimetype="text/plain")
+    return Response("Not found", status=404)
 
 
 # ---------------------------------------------------------------------------
@@ -344,11 +391,11 @@ def not_found(e):
 def crawl_and_process():
     crawl_all()
     process_batch(limit=60)
+    tag_untagged_batch(limit=100)
 
 
 def start_scheduler():
     scheduler = BackgroundScheduler(daemon=True)
-    # Crawl + process immediately on start, then every 2 hours
     scheduler.add_job(crawl_and_process, "interval", hours=2,
                       id="crawl_process", next_run_time=datetime.now())
     scheduler.start()

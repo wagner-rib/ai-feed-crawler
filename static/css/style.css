@@ -423,3 +423,18 @@ footer { background: var(--bg2); border-top: 1px solid var(--border); padding: 4
   .article-hero { padding: 36px 16px 30px; }
   .read-more-cta .cta-inner { flex-direction: column; align-items: flex-start; }
 }
+
+/* ===== Static pages (About, Privacy) ===== */
+.static-page { max-width: 720px; margin: 0 auto; padding: 48px 24px 80px; }
+.static-page h1 { font-size: 2rem; margin-bottom: 1rem; }
+.static-page h2 { font-size: 1.2rem; margin: 2rem 0 .5rem; color: var(--accent2); }
+.static-page p { line-height: 1.8; color: var(--muted2); margin-bottom: 1rem; }
+.static-page a { color: var(--accent2); }
+
+/* ===== Breadcrumb ===== */
+.breadcrumb { max-width: 900px; margin: 0 auto; padding: 12px 24px 0; }
+.breadcrumb ol { list-style: none; display: flex; flex-wrap: wrap; gap: 4px; font-size: .8rem; color: var(--muted); }
+.breadcrumb li + li::before { content: '›'; margin-right: 4px; }
+.breadcrumb a { color: var(--muted2); text-decoration: none; }
+.breadcrumb a:hover { color: var(--accent2); }
+.breadcrumb [aria-current] { color: var(--fg); }

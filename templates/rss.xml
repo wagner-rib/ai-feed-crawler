@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"
+     xmlns:atom="http://www.w3.org/2005/Atom"
+     xmlns:media="http://search.yahoo.com/mrss/"
+     xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>DeepTrendLab — AI News &amp; Research</title>
+    <link>{{ site_url }}/</link>
+    <description>The premier AI news aggregator. Research papers, lab announcements, tools and insights from the top 50 AI sources — updated every 2 hours.</description>
+    <language>en-us</language>
+    <atom:link href="{{ site_url }}/rss.xml" rel="self" type="application/rss+xml" />
+    <ttl>120</ttl>
+    {% for a in articles %}
+    <item>
+      <title><![CDATA[{{ a.title }}]]></title>
+      <link>{{ site_url }}/article/{{ a.slug }}</link>
+      <guid isPermaLink="true">{{ site_url }}/article/{{ a.slug }}</guid>
+      <description><![CDATA[{{ a.summary or '' }}]]></description>
+      <pubDate>{{ a.published | rssdate }}</pubDate>
+      <category><![CDATA[{{ a.category }}]]></category>
+      <dc:source>{{ a.source_name }}</dc:source>
+      {% if a.image_url %}
+      <media:content url="{{ a.image_url }}" medium="image" />
+      {% endif %}
+    </item>
+    {% endfor %}
+  </channel>
+</rss>

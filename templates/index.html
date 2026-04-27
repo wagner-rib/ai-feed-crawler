@@ -1,8 +1,62 @@
 {% extends "base.html" %}
 
+{% if tag is defined and tag %}
+  {% set _page_title = '#' + tag + ' — AI News & Research · DeepTrendLab' %}
+  {% set _page_desc = 'Latest AI news and research articles tagged #' + tag + ' — curated from the top 50 AI sources on DeepTrendLab.' %}
+  {% set _canonical = site_url + '/tag/' + tag %}
+{% elif selected_category %}
+  {% set _page_title = selected_category + ' AI News & Research · DeepTrendLab' %}
+  {% set _page_desc = 'Latest ' + selected_category + ' news and research from the top 50 AI sources — updated every 2 hours on DeepTrendLab.' %}
+  {% set _canonical = site_url + '/?category=' + selected_category %}
+{% elif selected_source %}
+  {% set _page_title = selected_source + ' — Articles · DeepTrendLab' %}
+  {% set _page_desc = 'All articles from ' + selected_source + ' aggregated on DeepTrendLab — AI news, research and announcements.' %}
+  {% set _canonical = site_url + '/?source=' + selected_source %}
+{% elif query %}
+  {% set _page_title = 'Search: "' + query + '" · DeepTrendLab' %}
+  {% set _page_desc = 'DeepTrendLab search results for "' + query + '" — AI news, research papers and tools from the top 50 sources.' %}
+  {% set _canonical = site_url + '/?q=' + query %}
+{% else %}
+  {% set _page_title = 'DeepTrendLab — Top AI News & Research Aggregator' %}
+  {% set _page_desc = 'The premier AI news aggregator. Research papers, lab announcements, tools and insights from the top 50 AI sources — updated every 2 hours.' %}
+  {% set _canonical = site_url + '/' %}
+{% endif %}
+
+{% block title %}{{ _page_title }}{% endblock %}
+{% block description %}{{ _page_desc }}{% endblock %}
+{% block og_title %}{{ _page_title }}{% endblock %}
+{% block og_desc %}{{ _page_desc }}{% endblock %}
+{% block tw_title %}{{ _page_title }}{% endblock %}
+{% block tw_desc %}{{ _page_desc }}{% endblock %}
+{% block canonical %}{{ _canonical }}{% if page > 1 %}?page={{ page }}{% endif %}{% endblock %}
+
 {% block pagination_links %}
 {% if prev_url %}<link rel="prev" href="{{ site_url }}{{ prev_url }}" />{% endif %}
 {% if next_url %}<link rel="next" href="{{ site_url }}{{ next_url }}" />{% endif %}
+{% endblock %}
+
+{% block structured_data %}
+{{ super() }}
+{% if articles %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "ItemList",
+  "name": {{ _page_title | tojson }},
+  "url": {{ _canonical | tojson }},
+  "itemListElement": [
+    {% for a in articles %}
+    {
+      "@type": "ListItem",
+      "position": {{ loop.index + (page - 1) * 24 }},
+      "url": {{ (site_url + '/article/' + (a.slug or a.uid)) | tojson }},
+      "name": {{ a.title | tojson }}
+    }{% if not loop.last %},{% endif %}
+    {% endfor %}
+  ]
+}
+</script>
+{% endif %}
 {% endblock %}
 
 {% block content %}
@@ -69,25 +123,22 @@
             <a href="/article/{{ article.slug or article.uid }}" itemprop="url">{{ article.title }}</a>
           </h2>
 
-          {% set display_text = article.ai_digest or article.summary %}
+          {% set display_text = article.summary %}
           {% if display_text %}
           <p class="card-summary" itemprop="description">
             {{ display_text | truncate_words(is_featured and 60 or 30) }}
           </p>
           {% endif %}
 
-          <!-- Tags -->
           {% if article.tags %}
+          {% set tag_list = article.tags | from_json | list %}
+          {% if tag_list %}
           <div class="card-tags">
-            {% for tag in article.tags | from_json | list %}
-            <a href="/tag/{{ tag | urlencode }}" class="tag-chip">#{{ tag }}</a>
+            {% for t in tag_list[:3] %}
+            <a href="/tag/{{ t | urlencode }}" class="tag-chip">#{{ t }}</a>
             {% endfor %}
           </div>
           {% endif %}
-
-          <!-- AI badge if digest available -->
-          {% if article.ai_digest %}
-          <div class="ai-badge">⚡ AI Digest</div>
           {% endif %}
 
           <div class="card-footer">

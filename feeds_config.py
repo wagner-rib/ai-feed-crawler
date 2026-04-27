@@ -81,27 +81,6 @@ AI_FEEDS = [
     },
     # === Research ===
     {
-        "name": "ArXiv — AI",
-        "rss_url": "https://export.arxiv.org/rss/cs.AI",
-        "website_url": "https://arxiv.org/list/cs.AI/recent",
-        "category": "Research",
-        "logo": "📄",
-    },
-    {
-        "name": "ArXiv — Machine Learning",
-        "rss_url": "https://export.arxiv.org/rss/cs.LG",
-        "website_url": "https://arxiv.org/list/cs.LG/recent",
-        "category": "Research",
-        "logo": "📊",
-    },
-    {
-        "name": "ArXiv — Computer Vision",
-        "rss_url": "https://export.arxiv.org/rss/cs.CV",
-        "website_url": "https://arxiv.org/list/cs.CV/recent",
-        "category": "Research",
-        "logo": "👁️",
-    },
-    {
         "name": "Papers With Code",
         "rss_url": "https://paperswithcode.com/latest/rss",
         "website_url": "https://paperswithcode.com",
@@ -128,13 +107,6 @@ AI_FEEDS = [
         "website_url": "https://www.fast.ai",
         "category": "Research",
         "logo": "🏃",
-    },
-    {
-        "name": "ArXiv — NLP",
-        "rss_url": "https://export.arxiv.org/rss/cs.CL",
-        "website_url": "https://arxiv.org/list/cs.CL/recent",
-        "category": "Research",
-        "logo": "💬",
     },
     # === News ===
     {

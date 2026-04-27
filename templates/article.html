@@ -1,16 +1,22 @@
 {% extends "base.html" %}
 
-{% block title %}{{ article.title }} — AIFeed{% endblock %}
-{% block description %}{{ (article.ai_digest or article.summary or article.title) | truncate(160) }}{% endblock %}
+{% block title %}{{ article.title }} — DeepTrendLab{% endblock %}
+{% block description %}{{ (article.summary or article.title) | truncate(160) }}{% endblock %}
 {% block keywords %}{{ tags | join(', ') }}, AI news, artificial intelligence{% endblock %}
 {% block canonical %}{{ canonical }}{% endblock %}
 
+{% block extra_head %}
+{% if article.image_url %}
+<link rel="preload" as="image" href="{{ article.image_url }}" fetchpriority="high" />
+{% endif %}
+{% endblock %}
+
 {% block og_type %}article{% endblock %}
 {% block og_title %}{{ article.title }}{% endblock %}
-{% block og_desc %}{{ (article.ai_digest or article.summary or '') | truncate(200) }}{% endblock %}
+{% block og_desc %}{{ (article.summary or '') | truncate(200) }}{% endblock %}
 {% block og_image %}{{ article.image_url or (site_url + '/static/img/og-default.png') }}{% endblock %}
 {% block tw_title %}{{ article.title }}{% endblock %}
-{% block tw_desc %}{{ (article.ai_digest or article.summary or '') | truncate(200) }}{% endblock %}
+{% block tw_desc %}{{ (article.summary or '') | truncate(200) }}{% endblock %}
 {% block tw_image %}{{ article.image_url or (site_url + '/static/img/og-default.png') }}{% endblock %}
 
 {% block structured_data %}
@@ -20,7 +26,7 @@
     "@context": "https://schema.org",
     "@type": "NewsArticle",
     "headline": {{ article.title | tojson }},
-    "description": {{ (article.ai_digest or article.summary or '') | truncate(300) | tojson }},
+    "description": {{ (article.summary or '') | truncate(300) | tojson }},
     "image": {{ (article.image_url or (site_url + '/static/img/og-default.png')) | tojson }},
     "datePublished": {{ article.published | tojson }},
     "dateModified": {{ article.fetched_at | tojson }},
@@ -30,7 +36,7 @@
     },
     "publisher": {
       "@type": "Organization",
-      "name": "AIFeed",
+      "name": "DeepTrendLab",
       "url": {{ site_url | tojson }},
       "logo": {
         "@type": "ImageObject",
@@ -72,6 +78,14 @@
 
 {% block content %}
 
+<nav class="breadcrumb" aria-label="Breadcrumb">
+  <ol>
+    <li><a href="/">Home</a></li>
+    <li><a href="/?category={{ article.category | urlencode }}">{{ article.category }}</a></li>
+    <li aria-current="page">{{ article.title | truncate(60) }}</li>
+  </ol>
+</nav>
+
 <!-- Article Hero -->
 <div class="article-hero">
   <div class="article-hero-inner">
@@ -100,7 +114,7 @@
 {% if article.image_url %}
 <div class="article-image-wrap">
   <img src="{{ article.image_url }}" alt="{{ article.title }}"
-       class="article-hero-image" loading="eager" itemprop="image" />
+       class="article-hero-image" loading="eager" fetchpriority="high" itemprop="image" />
 </div>
 {% else %}
 <div class="article-image-wrap article-hero-placeholder">

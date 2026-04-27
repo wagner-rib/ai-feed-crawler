@@ -261,6 +261,19 @@ def _extract_article_images(orig_soup: BeautifulSoup, base_url: str) -> list[str
 
     search_area = container if container else orig_soup
 
+    # Remove non-content sub-sections before scanning for images
+    _EXCLUDE_SELECTORS = [
+        "footer", "header", "nav", "aside",
+        "[class*='author-box']", "[class*='author-bio']", "[class*='author-image']",
+        "[class*='blog-author']", "[class*='author_bio']",
+        "[class*='related']", "[class*='sidebar']", "[class*='newsletter']",
+        "[class*='comment']", "[class*='share']",
+    ]
+    search_area = BeautifulSoup(str(search_area), "lxml")  # work on a copy
+    for excl in _EXCLUDE_SELECTORS:
+        for node in search_area.select(excl):
+            node.decompose()
+
     seen, result = set(), []
     # Look inside <picture>, <figure>, and plain <img> tags
     for el in search_area.find_all(["picture", "img", "figure"]):
@@ -399,13 +412,54 @@ _BOILERPLATE_RE = re.compile(
     r"|also:\s*(read|see|watch|check)"
     r"|\bsubscribe\b.{0,40}\bpodcast\b"
     r"|©\s*20\d\d\s+\w"                             # copyright lines
-    r"|all rights reserved",
+    r"|all rights reserved"
+    # ZDNET trust / affiliate disclosure block
+    r"|why you can trust zdnet"
+    r"|zdnet independently tests and researches products"
+    r"|zdnet('s)? recommendations are based on"
+    r"|zdnet's editorial team writes on behalf"
+    r"|when you (click|buy) through (from )?our (links|site).{0,80}(commission|earn)"
+    r"|neither zdnet nor the author are compensated"
+    r"|our editorial content is never influenced by advertisers"
+    r"|zdnet recommends.{0,60}what (exactly )?does it mean"
+    # Author / date metadata lines
+    r"|written by\b"
+    r"|\bmust read\b"
+    # Footer / social / comment section noise
+    r"|editorial standards"
+    r"|show comments"
+    r"|log in to comment"
+    r"|community guidelines"
+    r"|your privacy is important"
+    r"|subject to your privacy choices"
+    r"|featured reviews\b",
+    re.IGNORECASE,
+)
+
+_PHOTO_CREDIT_RE = re.compile(
+    r"^[A-Za-z][\w\s,\.&''-]{0,60}(/[\w\s,\.&''-]{1,40})+$"   # "Kerry Wan/ZDNET"
+    r"|^[A-Za-z][\w\s]{0,30}$",                                  # single word/brand "Framework"
+    re.IGNORECASE,
+)
+
+_DATE_LINE_RE = re.compile(
+    r"^(january|february|march|april|may|june|july|august|september|october|november|december)"
+    r"\s+\d{1,2},?\s+\d{4}",
+    re.IGNORECASE,
+)
+
+_JOB_TITLE_RE = re.compile(
+    r"^(senior |staff |contributing |associate |managing |executive |deputy |chief )?"
+    r"(editor|reporter|writer|journalist|correspondent|columnist|analyst|contributor|photographer)s?$",
     re.IGNORECASE,
 )
 
 
 _AUTHOR_URL_RE = re.compile(
-    r"/authors?/|/staff/|/contributors?/|/people/|/profiles?/|/writers?/|/reporters?/",
+    r"/authors?/|/staff/|/contributors?/|/people/|/profiles?/|/writers?/|/reporters?/"
+    r"|medium\.com/@"                           # Medium author profiles
+    r"|linkedin\.com/in/"                       # LinkedIn personal profiles
+    r"|(?:x|twitter)\.com/(?!intent|share|home|search|hashtag|i/)",  # X/Twitter profiles
     re.IGNORECASE,
 )
 _BYLINE_RE = re.compile(
@@ -414,7 +468,7 @@ _BYLINE_RE = re.compile(
 )
 
 
-def _strip_boilerplate(result: dict) -> None:
+def _strip_boilerplate(result: dict, article_title: str = "") -> None:
     """Remove publisher promo lines, author profile links, and bare bylines."""
     content = result.get("content_html")
     if not content:
@@ -422,14 +476,63 @@ def _strip_boilerplate(result: dict) -> None:
     soup = BeautifulSoup(content, "lxml")
     changed = False
 
-    # 1. Remove promotional paragraphs / CTAs
-    for el in soup.find_all(["p", "div", "li", "aside", "section", "small"]):
+    # 1. Remove duplicate leading title (readability / Jina often prepend the article headline)
+    if article_title:
+        title_norm = re.sub(r"\s+", " ", article_title).strip().lower()
+        body = soup.find("body") or soup
+        first_heading = body.find(["h1", "h2", "h3"])
+        if first_heading:
+            heading_norm = re.sub(r"\s+", " ", first_heading.get_text(" ", strip=True)).lower()
+            if heading_norm == title_norm or heading_norm in title_norm or title_norm in heading_norm:
+                first_heading.decompose()
+                changed = True
+
+    # 2. Remove promotional paragraphs / CTAs and date/byline metadata
+    for el in soup.find_all(["p", "div", "li", "aside", "section", "small", "h3", "h4", "h5"]):
         txt = el.get_text(" ", strip=True)
-        if len(txt) < 500 and _BOILERPLATE_RE.search(txt):
+        if not txt:
+            continue
+        if len(txt) < 600 and _BOILERPLATE_RE.search(txt):
+            # If it's a heading, also remove the list immediately after it
+            if el.name in ("h3", "h4", "h5"):
+                nxt = el.find_next_sibling()
+                if nxt and nxt.name in ("ul", "ol"):
+                    nxt.decompose()
+            el.decompose()
+            changed = True
+        elif len(txt) < 80 and (_DATE_LINE_RE.match(txt) or _JOB_TITLE_RE.match(txt)):
             el.decompose()
             changed = True
 
-    # 2. Strip author profile links; remove parent if it becomes a bare byline
+    # 3. Remove empty lists (social share button ghosts, etc.)
+    for ul in soup.find_all(["ul", "ol"]):
+        items = ul.find_all("li")
+        if items and all(not li.get_text(strip=True).replace("*", "").strip() for li in items):
+            ul.decompose()
+            changed = True
+
+    # 4. Strip standalone photo credits immediately after figures (e.g. "Kerry Wan/ZDNET")
+    for fig in soup.find_all("figure"):
+        sibling = fig.find_next_sibling()
+        for _ in range(2):  # check up to 2 siblings (caption then credit)
+            if not sibling or sibling.name != "p":
+                break
+            txt = sibling.get_text(" ", strip=True)
+            next_sibling = sibling.find_next_sibling()
+            if len(txt) < 80 and _PHOTO_CREDIT_RE.match(txt):
+                sibling.decompose()
+                changed = True
+            sibling = next_sibling
+
+    # 5. Add rel="nofollow noopener" to all external links in scraped content
+    for a in soup.find_all("a", href=True):
+        href = a["href"]
+        if href.startswith("http"):
+            a["rel"] = "nofollow noopener"
+            a["target"] = "_blank"
+            changed = True
+
+    # 6. Strip author profile links; remove parent if it becomes a bare byline
     for a in soup.find_all("a", href=True):
         if _AUTHOR_URL_RE.search(a.get("href", "")):
             parent = a.parent
@@ -446,9 +549,9 @@ def _strip_boilerplate(result: dict) -> None:
         result["content_html"] = body.decode_contents() if body else str(soup)
 
 
-def _post_process_result(result: dict) -> None:
+def _post_process_result(result: dict, article_title: str = "") -> None:
     """Run all content cleanup passes before returning a fetch result."""
-    _strip_boilerplate(result)
+    _strip_boilerplate(result, article_title=article_title)
     _dedup_hero_image(result)
 
 
@@ -565,6 +668,7 @@ def _strip_jina_boilerplate(md: str, article_title: str = "") -> str:
         "[Skip to main content]", "[Skip to content]",
         "Skip to main content", "Skip to content",
         "[Skip Navigation]",
+        "Why you can trust ZDNET",
     ]
     found_skip = False
     for anchor in _SKIP_ANCHORS:
@@ -625,6 +729,9 @@ def _strip_jina_boilerplate(md: str, article_title: str = "") -> str:
         # Ars Technica comments section headers
         "\nStaff Picks\n",           # header above top-picked reader comments
         "\nReader Comments\n",       # alternate header
+        "\nFeatured reviews\n", "\n## Featured reviews", "\n### Featured reviews",
+        "\nEditorial standards\n", "\nShow Comments\n", "\nCommunity Guidelines\n",
+        "\nYour privacy is important", "\nSubject to your privacy choices",
         "/civis/posts/",             # civis comment thread links
         "/civis/members/",           # civis user profile links (commenter names)
         # Privacy / legal footer
@@ -762,7 +869,7 @@ def fetch_and_clean(url: str, article_title: str = "") -> dict:
                     log.info("Injected %d video(s) from raw HTML: %s", len(videos), url)
             except Exception as exc:
                 log.debug("Secondary fetch failed %s: %s", url, exc)
-            _post_process_result(result)
+            _post_process_result(result, article_title=article_title)
             return result
         log.info("Jina failed for preferred domain, falling back to readability: %s", url)
 
@@ -784,7 +891,7 @@ def fetch_and_clean(url: str, article_title: str = "") -> dict:
         if not jina:
             return result
         result.update({k: v for k, v in jina.items() if v})
-        _post_process_result(result)
+        _post_process_result(result, article_title=article_title)
         return result
 
     orig_soup = BeautifulSoup(raw_html, "lxml")
@@ -854,6 +961,9 @@ def fetch_and_clean(url: str, article_title: str = "") -> dict:
             img.decompose()
         else:
             img["loading"] = "lazy"
+            # Fill missing alt text with article title for SEO / accessibility
+            if not img.get("alt"):
+                img["alt"] = article_title or ""
             img.attrs = {k: v for k, v in img.attrs.items()
                          if k in ("src", "alt", "title", "width", "height", "loading")}
 
@@ -892,7 +1002,7 @@ def fetch_and_clean(url: str, article_title: str = "") -> dict:
         if jina and len(jina["plain_text"].split()) > len(result["plain_text"].split()):
             result.update({k: v for k, v in jina.items() if v})
 
-    _post_process_result(result)
+    _post_process_result(result, article_title=article_title)
     log.debug("Result: %d words, %d imgs total",
               len(result["plain_text"].split()),
               len(clean_soup.find_all("img")))
@@ -903,21 +1013,17 @@ def fetch_and_clean(url: str, article_title: str = "") -> dict:
 # Claude — tags + excerpt only
 # ---------------------------------------------------------------------------
 
-def _call_claude_tags(title: str, text: str, source_name: str) -> dict | None:
+def _call_claude_tags(title: str, text: str, source_name: str) -> list[str]:
+    """Return up to 5 topic tags for an article. Returns [] on failure or missing API key."""
     if not ANTHROPIC_API_KEY:
-        return None
+        return []
 
-    snippet = text[:2000] if text else title
-    prompt = f"""Article from {source_name}: "{title}"
-
-First 2000 chars:
-{snippet}
-
-Return JSON only:
-{{
-  "excerpt": "<2 punchy sentences summarising the article for a news card, max 40 words>",
-  "tags": ["<tag1>", "<tag2>", "<tag3>", "<tag4>", "<tag5>"]
-}}"""
+    snippet = (text or title)[:1500]
+    prompt = (
+        f'Article from {source_name}: "{title}"\n\n{snippet}\n\n'
+        'Return a JSON array of 3-5 short topic tags (lowercase, no #). '
+        'Example: ["llm", "openai", "fine-tuning"]. JSON only, no other text.'
+    )
 
     try:
         resp = requests.post(
@@ -930,23 +1036,52 @@ Return JSON only:
             },
             json={
                 "model": "claude-haiku-4-5-20251001",
-                "max_tokens": 200,
+                "max_tokens": 80,
                 "system": [{"type": "text", "text": SYSTEM_PROMPT,
                              "cache_control": {"type": "ephemeral"}}],
                 "messages": [{"role": "user", "content": prompt}],
             },
-            timeout=20,
+            timeout=15,
         )
         resp.raise_for_status()
         raw = resp.json()["content"][0]["text"].strip()
         if raw.startswith("```"):
-            raw = raw.split("```")[1]
-            if raw.startswith("json"):
-                raw = raw[4:]
-        return json.loads(raw)
+            raw = re.sub(r"^```[a-z]*\n?", "", raw).rstrip("`").strip()
+        result = json.loads(raw)
+        if isinstance(result, list):
+            return [str(t).lower().strip() for t in result if t][:5]
     except Exception as exc:
         log.debug("Claude tags error for '%s': %s", title[:50], exc)
-        return None
+    return []
+
+
+def tag_untagged_batch(limit: int = 50) -> int:
+    """Generate tags for already-processed articles that have no tags yet."""
+    with get_db() as conn:
+        rows = conn.execute(
+            """SELECT uid, title, source_name, full_text, summary
+               FROM articles
+               WHERE processed = 2 AND (tags IS NULL OR tags = '[]' OR tags = '')
+               ORDER BY published DESC LIMIT ?""",
+            (limit,),
+        ).fetchall()
+
+    count = 0
+    for row in rows:
+        text = row["full_text"] or row["summary"] or ""
+        tags = _call_claude_tags(row["title"], text, row["source_name"])
+        if tags:
+            with get_db() as conn:
+                conn.execute(
+                    "UPDATE articles SET tags = ? WHERE uid = ?",
+                    (json.dumps(tags), row["uid"]),
+                )
+            count += 1
+        time.sleep(0.3)
+
+    if count:
+        log.info("Tagged %d articles", count)
+    return count
 
 
 # ---------------------------------------------------------------------------
@@ -960,7 +1095,7 @@ def _reading_time(text: str) -> int:
 def process_article(uid: str) -> bool:
     with get_db() as conn:
         row = conn.execute(
-            "SELECT uid, title, url, summary, source_name, category, image_url "
+            "SELECT uid, title, url, summary, source_name, category, image_url, tags "
             "FROM articles WHERE uid = ?", (uid,)
         ).fetchone()
     if not row:
@@ -973,17 +1108,19 @@ def process_article(uid: str) -> bool:
     author       = data["author"] or ""
     image        = data["image"] or row["image_url"]
 
-    # 2. AI tags + excerpt (cheap — only 200 tokens output)
-    ai = None
-    if plain_text or row["summary"]:
-        ai = _call_claude_tags(
-            row["title"],
-            plain_text or row["summary"] or "",
-            row["source_name"],
-        )
-
-    excerpt = (ai or {}).get("excerpt") or row["summary"] or ""
-    tags    = json.dumps((ai or {}).get("tags") or [])
+    new_tags = _call_claude_tags(
+        row["title"],
+        plain_text or row["summary"] or "",
+        row["source_name"],
+    )
+    # Merge Claude tags with any existing tags (RSS tags), preserving existing if API fails
+    existing_raw = row["tags"] if "tags" in row.keys() else None
+    existing = json.loads(existing_raw) if existing_raw else []
+    if new_tags:
+        merged = list(dict.fromkeys(new_tags + [t for t in existing if t not in new_tags]))
+        tags = json.dumps(merged[:8])
+    else:
+        tags = existing_raw or json.dumps([])
 
     with get_db() as conn:
         conn.execute(
@@ -1000,7 +1137,7 @@ def process_article(uid: str) -> bool:
             (
                 plain_text or None,
                 content_html or None,
-                excerpt or None,
+                None,
                 tags,
                 author,
                 _reading_time(plain_text),
@@ -1009,11 +1146,10 @@ def process_article(uid: str) -> bool:
             ),
         )
 
-    log.info("Processed %-16s  %4d words  html=%s  ai=%s",
+    log.info("Processed %-16s  %4d words  html=%s",
              uid,
              len((plain_text or "").split()),
-             "✓" if content_html else "✗",
-             "✓" if ai else "✗")
+             "✓" if content_html else "✗")
     return True
 
 
