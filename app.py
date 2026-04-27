@@ -409,13 +409,20 @@ def not_found(e):
 # Scheduler
 # ---------------------------------------------------------------------------
 
-def do_crawl():
-    crawl_all()
-
-
 def do_process():
     process_batch(limit=60)
     tag_untagged_batch(limit=50)
+
+
+def do_crawl():
+    crawl_all()
+    # Immediately process if new articles are waiting
+    db = sqlite3.connect(str(DB_PATH))
+    pending = db.execute("SELECT COUNT(*) FROM articles WHERE processed=0").fetchone()[0]
+    db.close()
+    if pending > 0:
+        app.logger.info("Crawl added %d unprocessed articles — processing immediately", pending)
+        do_process()
 
 
 def run_daily_digest():
