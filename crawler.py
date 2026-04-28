@@ -285,6 +285,12 @@ def crawl_all():
         except Exception:
             pass
         _ping_indexnow(new_slugs)
+    # Always record when the crawler last ran, regardless of new articles found
+    with get_db() as conn:
+        conn.execute("""CREATE TABLE IF NOT EXISTS crawler_meta
+            (key TEXT PRIMARY KEY, value TEXT)""")
+        conn.execute("INSERT OR REPLACE INTO crawler_meta (key, value) VALUES ('last_crawl_at', ?)",
+                     (datetime.now(timezone.utc).isoformat(),))
     log.info("=== Crawl complete — %d new articles ===", total)
     return total
 
@@ -295,9 +301,15 @@ def get_stats() -> dict:
         by_cat = conn.execute(
             "SELECT category, COUNT(*) as n FROM articles GROUP BY category ORDER BY n DESC"
         ).fetchall()
-        last_fetch = conn.execute(
-            "SELECT MAX(fetched_at) FROM articles"
-        ).fetchone()[0]
+        # Use last crawl run time, not last article insert time
+        try:
+            last_fetch = conn.execute(
+                "SELECT value FROM crawler_meta WHERE key='last_crawl_at'"
+            ).fetchone()[0]
+        except Exception:
+            last_fetch = conn.execute(
+                "SELECT MAX(fetched_at) FROM articles"
+            ).fetchone()[0]
     return {
         "total": total,
         "by_category": {r["category"]: r["n"] for r in by_cat},
