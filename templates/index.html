@@ -17,8 +17,8 @@
   {% set _page_desc = 'DeepTrendLab search results for "' + query + '" — AI news, research papers and tools from the top 50 sources.' %}
   {% set _canonical = site_url + '/?q=' + query %}
 {% else %}
-  {% set _page_title = 'DeepTrendLab — Top AI News & Research Aggregator' %}
-  {% set _page_desc = 'The premier AI news aggregator. Research papers, lab announcements, tools and insights from the top 50 AI sources — updated every 2 hours.' %}
+  {% set _page_title = 'DeepTrendLab | The Top 50 AI News & Research Sources Live' %}
+  {% set _page_desc = 'Stay ahead of the AI curve. DeepTrendLab aggregates real-time news, research, and tools from 50 top AI labs and publishers including DeepMind, OpenAI, and Hugging Face.' %}
   {% set _canonical = site_url + '/' %}
 {% endif %}
 
@@ -28,7 +28,7 @@
 {% block og_desc %}{{ _page_desc }}{% endblock %}
 {% block tw_title %}{{ _page_title }}{% endblock %}
 {% block tw_desc %}{{ _page_desc }}{% endblock %}
-{% block canonical %}{{ _canonical }}{% if page > 1 %}?page={{ page }}{% endif %}{% endblock %}
+{% block canonical %}{{ _canonical }}{% if page > 1 %}{% if '?' in _canonical %}&{% else %}?{% endif %}page={{ page }}{% endif %}{% endblock %}
 
 {% block pagination_links %}
 {% if prev_url %}<link rel="prev" href="{{ site_url }}{{ prev_url }}" />{% endif %}
@@ -61,7 +61,28 @@
 
 {% block content %}
 
-<h1 class="visually-hidden">DeepTrendLab — Top 50 AI Sources, Research &amp; News</h1>
+<h1 class="visually-hidden">
+  {% if tag is defined and tag %}#{{ tag }} — AI News &amp; Research · DeepTrendLab
+  {% elif selected_category %}{{ selected_category }} AI News &amp; Research · DeepTrendLab
+  {% elif selected_source %}{{ selected_source }} Articles · DeepTrendLab
+  {% elif query %}Search: "{{ query }}" · DeepTrendLab
+  {% else %}DeepTrendLab — Top 50 AI News &amp; Research Sources Live
+  {% endif %}
+</h1>
+
+{% if tag is defined and tag %}
+<div class="page-intro">
+  <p>Explore the latest AI news and research tagged <strong>#{{ tag }}</strong> — curated from top sources including OpenAI, Anthropic, Google DeepMind, and more.</p>
+</div>
+{% elif selected_category %}
+<div class="page-intro">
+  <p>Browse the latest <strong>{{ selected_category }}</strong> news and research aggregated from the top 50 AI sources on DeepTrendLab — updated every 2 hours.</p>
+</div>
+{% elif selected_source %}
+<div class="page-intro">
+  <p>All articles from <strong>{{ selected_source }}</strong> aggregated on DeepTrendLab — AI news, research, and announcements in one place.</p>
+</div>
+{% endif %}
 
 <!-- Main Content -->
 <div class="main-layout">
@@ -69,7 +90,7 @@
   <!-- Articles -->
   <main>
     <div class="articles-header">
-      <span class="articles-title">
+      <h2 class="articles-title">
         {% if tag is defined and tag %}
           #{{ tag }}
         {% elif query %}
@@ -81,7 +102,7 @@
         {% else %}
           Latest AI News &amp; Research
         {% endif %}
-      </span>
+      </h2>
       <span class="articles-count">{{ total_articles | default(0) }} articles</span>
     </div>
 
@@ -119,9 +140,9 @@
             {% endif %}
           </div>
 
-          <h2 class="card-title" itemprop="headline">
+          <h3 class="card-title" itemprop="headline">
             <a href="/article/{{ article.slug or article.uid }}" itemprop="url">{{ article.title }}</a>
-          </h2>
+          </h3>
 
           {% set display_text = article.summary %}
           {% if display_text %}
