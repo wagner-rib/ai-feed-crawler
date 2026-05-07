@@ -185,9 +185,21 @@ def index():
 
 @app.route("/article/<slug>")
 def article(slug):
+    import re as _re
     db = get_db()
     art = db.execute("SELECT * FROM articles WHERE slug = ?", (slug,)).fetchone()
     if art is None:
+        # 301: old digest slug format → new SEO slug format
+        # ai-daily-digest-may-06-2026  →  ai-news-may-06-2026
+        # ai-weekly-digest-week-of-...  →  top-ai-stories-week-of-...
+        # ai-monthly-digest-may-2026   →  ai-developments-may-2026
+        new_slug = _re.sub(r'^ai-daily-digest-', 'ai-news-', slug)
+        new_slug = _re.sub(r'^ai-weekly-digest-', 'top-ai-stories-', new_slug)
+        new_slug = _re.sub(r'^ai-monthly-digest-', 'ai-developments-', new_slug)
+        if new_slug != slug:
+            art = db.execute("SELECT * FROM articles WHERE slug = ?", (new_slug,)).fetchone()
+            if art is not None:
+                return redirect(f"/article/{new_slug}", 301)
         # Backwards-compat: old UID-based URLs get a 301 to the slug URL
         art = db.execute("SELECT * FROM articles WHERE uid = ?", (slug,)).fetchone()
         if art is not None:
@@ -195,8 +207,11 @@ def article(slug):
             return redirect(f"/article/{dest}", 301)
         return render_template("404.html"), 404
 
-    db.execute("UPDATE articles SET views = views + 1 WHERE slug = ?", (slug,))
-    db.commit()
+    try:
+        db.execute("UPDATE articles SET views = views + 1 WHERE slug = ?", (slug,))
+        db.commit()
+    except Exception:
+        pass
 
     tags = []
     if art["tags"]:

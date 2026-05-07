@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block title %}{{ article.title }} — DeepTrendLab{% endblock %}
-{% block description %}{{ (article.summary or article.title) | truncate(160) }}{% endblock %}
+{% block description %}{% if article.source_name and article.source_name != 'DeepTrendLab' %}{{ article.source_name }} · {{ article.published[:10] }} — {% endif %}{{ (article.summary or article.title) | truncate(145) }}{% endblock %}
 {% block keywords %}{{ tags | join(', ') }}, AI news, artificial intelligence{% endblock %}
 {% block canonical %}{{ canonical }}{% endblock %}
 
