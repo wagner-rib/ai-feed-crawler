@@ -10,8 +10,10 @@
   <meta name="robots" content="{% block robots %}index, follow{% endblock %}" />
   <meta name="google-site-verification" content="google79054ec901bfd214" />
 
-  <!-- Google AdSense -->
+  <!-- Google AdSense (original content pages only) -->
+  {% block adsense %}
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9284861652979533" crossorigin="anonymous"></script>
+  {% endblock %}
 
   <!-- Google Analytics -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-P22SXT5H3B"></script>
