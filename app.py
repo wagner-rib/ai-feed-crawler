@@ -444,9 +444,16 @@ def not_found(e):
 # Scheduler
 # ---------------------------------------------------------------------------
 
+WATCHER_SIGNAL = "/data/.process_done"
+
 def do_process():
     process_batch(limit=60)
     tag_untagged_batch(limit=50)
+    # Signal ai_watcher.py on the host that new content is ready
+    try:
+        open(WATCHER_SIGNAL, "w").close()
+    except Exception:
+        pass
 
 
 def do_crawl():

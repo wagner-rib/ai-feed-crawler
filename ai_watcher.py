@@ -24,7 +24,8 @@ from datetime import datetime, timezone, timedelta
 
 DB_PATH = "/var/lib/containers/storage/volumes/ai-feed-crawler_aifeed_data/_data/articles.db"
 CLAUDE_CLI = "claude"
-POLL_INTERVAL = 60   # seconds between scans for new articles
+POLL_INTERVAL = 300  # seconds between scans (5 min fallback)
+SIGNAL_FILE   = "/var/lib/containers/storage/volumes/ai-feed-crawler_aifeed_data/_data/.process_done"
 BATCH_SIZE    = 5    # articles to process per cycle (keeps writes short)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -352,17 +353,27 @@ def main():
         sys.exit(0)
 
     # Continuous watcher mode
-    log.info("AI watcher started — polling every %ds", POLL_INTERVAL)
+    log.info("AI watcher started — triggered by container signal + %ds fallback poll", POLL_INTERVAL)
     last_daily  = None
     last_weekly = None
+    last_poll   = 0
 
+    import os
     while True:
         try:
-            n = process_pending()
-            if n:
-                log.info("Processed %d articles", n)
-
             now = datetime.now(timezone.utc)
+            triggered = os.path.exists(SIGNAL_FILE)
+            due_for_poll = (time.time() - last_poll) >= POLL_INTERVAL
+
+            if triggered or due_for_poll:
+                if triggered:
+                    os.remove(SIGNAL_FILE)
+                    log.info("Signal received — processing new articles")
+
+                n = process_pending()
+                if n:
+                    log.info("Processed %d articles", n)
+                last_poll = time.time()
 
             # Daily digest at 08:00 UTC
             if now.hour == 8 and (last_daily is None or last_daily.date() < now.date()):
@@ -380,7 +391,7 @@ def main():
         except Exception as e:
             log.error("Watcher error: %s", e)
 
-        time.sleep(POLL_INTERVAL)
+        time.sleep(10)  # tight loop checking signal file only
 
 
 if __name__ == "__main__":
