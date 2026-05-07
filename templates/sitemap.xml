@@ -34,6 +34,14 @@
     <priority>0.7</priority>
   </url>
   {% endfor %}
+  {% for feed in feeds %}
+  <url>
+    <loc>{{ site_url }}/source/{{ slugify(feed.name) }}</loc>
+    <lastmod>{{ now_date }}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  {% endfor %}
   {% for article in articles %}
   <url>
     <loc>{{ site_url }}/article/{{ article.slug or article.uid }}</loc>

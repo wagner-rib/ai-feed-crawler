@@ -1,13 +1,18 @@
 {% extends "base.html" %}
 
 {% if tag is defined and tag %}
-  {% set _page_title = '#' + tag + ' — AI News & Research · DeepTrendLab' %}
-  {% set _page_desc = 'Latest AI news and research articles tagged #' + tag + ' — curated from the top 50 AI sources on DeepTrendLab.' %}
+  {% set _tag_clean = tag | title %}
+  {% set _page_title = _tag_clean + ' AI News & Research · DeepTrendLab' %}
+  {% set _page_desc = 'Latest ' + _tag_clean + ' news, research, and analysis — curated from 50 top AI sources including OpenAI, Anthropic, and Google DeepMind.' %}
   {% set _canonical = site_url + '/tag/' + tag %}
   {% set _robots = 'index, follow' %}
 {% elif selected_category %}
-  {% set _page_title = selected_category + ' AI News & Research · DeepTrendLab' %}
-  {% set _page_desc = 'Latest ' + selected_category + ' news and research from the top 50 AI sources — updated every 2 hours on DeepTrendLab.' %}
+  {% if selected_category == 'News' %}
+    {% set _page_title = 'Latest AI News & Research · DeepTrendLab' %}
+  {% else %}
+    {% set _page_title = selected_category + ' — AI News & Research · DeepTrendLab' %}
+  {% endif %}
+  {% set _page_desc = 'The latest ' + selected_category + ' developments from 50 top AI sources — updated every 2 hours on DeepTrendLab. No signup required.' %}
   {% set _canonical = site_url + '/?category=' + selected_category %}
   {% set _robots = 'index, follow' %}
 {% elif selected_source %}
@@ -68,8 +73,8 @@
 {% block content %}
 
 <h1 class="visually-hidden">
-  {% if tag is defined and tag %}#{{ tag }} — AI News &amp; Research · DeepTrendLab
-  {% elif selected_category %}{{ selected_category }} AI News &amp; Research · DeepTrendLab
+  {% if tag is defined and tag %}{{ _tag_clean }} AI News &amp; Research · DeepTrendLab
+  {% elif selected_category %}{% if selected_category == 'News' %}Latest AI News &amp; Research · DeepTrendLab{% else %}{{ selected_category }} — AI News &amp; Research · DeepTrendLab{% endif %}
   {% elif selected_source %}{{ selected_source }} Articles · DeepTrendLab
   {% elif query %}Search: "{{ query }}" · DeepTrendLab
   {% else %}DeepTrendLab — Top 50 AI News &amp; Research Sources Live
@@ -78,11 +83,11 @@
 
 {% if tag is defined and tag %}
 <div class="page-intro">
-  <p>Explore the latest AI news and research tagged <strong>#{{ tag }}</strong> — curated from top sources including OpenAI, Anthropic, Google DeepMind, and more.</p>
+  <p>Your hub for <strong>{{ _tag_clean }}</strong> news and research — curated daily from 50 top AI sources including OpenAI, Anthropic, Google DeepMind, and more. Every article is reviewed and enriched with editorial analysis by the DeepTrendLab team.</p>
 </div>
 {% elif selected_category %}
 <div class="page-intro">
-  <p>Browse the latest <strong>{{ selected_category }}</strong> news and research aggregated from the top 50 AI sources on DeepTrendLab — updated every 2 hours.</p>
+  <p>The latest <strong>{{ selected_category }}</strong> developments from 50 leading AI publishers, aggregated in real time by DeepTrendLab. Coverage spans research breakthroughs, product launches, funding rounds, and policy updates — updated every 2 hours, no signup required.</p>
 </div>
 {% elif selected_source %}
 <div class="page-intro">
@@ -98,7 +103,7 @@
     <div class="articles-header">
       <h2 class="articles-title">
         {% if tag is defined and tag %}
-          #{{ tag }}
+          {{ _tag_clean }}
         {% elif query %}
           Results for "{{ query }}"
         {% elif selected_category %}

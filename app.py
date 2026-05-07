@@ -104,6 +104,12 @@ def from_json_filter(s):
         return []
 
 
+@app.template_filter("slugify")
+def slugify_filter(s):
+    from slugify import slugify as _slugify
+    return _slugify(s)
+
+
 @app.template_filter("rssdate")
 def rssdate_filter(iso_str):
     if not iso_str:
@@ -289,6 +295,25 @@ def sources():
     return render_template("sources.html", feeds=AI_FEEDS, categories=CATEGORIES)
 
 
+@app.route("/source/<source_slug>")
+def source_page(source_slug):
+    from slugify import slugify as _slugify
+    feed = next((f for f in AI_FEEDS if _slugify(f["name"]) == source_slug), None)
+    if not feed:
+        return render_template("404.html"), 404
+    db = get_db()
+    articles = db.execute(
+        """SELECT uid, slug, title, summary, image_url, published, category, logo, tags
+           FROM articles WHERE source_name = ? ORDER BY published DESC LIMIT 24""",
+        (feed["name"],),
+    ).fetchall()
+    total = db.execute(
+        "SELECT COUNT(*) FROM articles WHERE source_name = ?", (feed["name"],)
+    ).fetchone()[0]
+    return render_template("source_page.html", feed=feed, articles=articles,
+                           total=total, categories=CATEGORIES, site_url=SITE_URL)
+
+
 @app.route("/about")
 def about():
     return render_template("about.html")
@@ -323,7 +348,9 @@ def sitemap():
            GROUP BY value ORDER BY COUNT(*) DESC LIMIT 100"""
     ).fetchall()
     now_date = datetime.now(timezone.utc).isoformat()[:10]
+    from slugify import slugify as _slugify
     xml = render_template("sitemap.xml", articles=articles, site_url=SITE_URL,
+                          feeds=AI_FEEDS, slugify=_slugify,
                           categories=CATEGORIES, top_tags=top_tags, now_date=now_date)
     return Response(xml, mimetype="application/xml")
 
@@ -361,9 +388,6 @@ Allow: /
 Disallow: /api/
 
 Sitemap: {SITE_URL}/sitemap_index.xml
-Sitemap: {SITE_URL}/sitemap.xml
-Sitemap: {SITE_URL}/sitemap-news.xml
-Sitemap: {SITE_URL}/rss.xml
 """
     return Response(txt, mimetype="text/plain")
 

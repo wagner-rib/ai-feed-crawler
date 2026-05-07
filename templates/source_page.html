@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% set _page_title = feed.name + ' — AI News & Research · DeepTrendLab' %}
+{% set _page_desc = 'Latest AI news and research from ' + feed.name + ' — aggregated by DeepTrendLab from 50 top AI sources. Updated every 2 hours.' %}
+
+{% block title %}{{ _page_title }}{% endblock %}
+{% block description %}{{ _page_desc }}{% endblock %}
+{% block og_title %}{{ _page_title }}{% endblock %}
+{% block og_desc %}{{ _page_desc }}{% endblock %}
+{% block tw_title %}{{ _page_title }}{% endblock %}
+{% block tw_desc %}{{ _page_desc }}{% endblock %}
+{% block canonical %}{{ site_url }}/source/{{ feed.name | slugify }}{% endblock %}
+
+{% block structured_data %}
+{{ super() }}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "CollectionPage",
+  "name": {{ _page_title | tojson }},
+  "description": {{ _page_desc | tojson }},
+  "url": "{{ site_url }}/source/{{ feed.name | slugify }}",
+  "publisher": {
+    "@type": "Organization",
+    "name": "DeepTrendLab",
+    "url": {{ site_url | tojson }}
+  }
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<nav class="breadcrumb" aria-label="Breadcrumb">
+  <ol>
+    <li><a href="/">Home</a></li>
+    <li><a href="/sources">Sources</a></li>
+    <li aria-current="page">{{ feed.name }}</li>
+  </ol>
+</nav>
+
+<div class="source-hero">
+  <div class="source-hero-inner">
+    <div class="source-hero-logo">{{ feed.logo }}</div>
+    <div class="source-hero-info">
+      <h1>{{ feed.name }}</h1>
+      <p class="source-hero-desc">
+        {{ total }} articles aggregated from
+        <a href="{{ feed.website_url }}" target="_blank" rel="noopener">{{ feed.website_url | replace('https://','') | replace('http://','') | truncate(40) }}</a>
+        — part of DeepTrendLab's coverage of 50 top AI sources.
+      </p>
+      <div class="source-hero-meta">
+        <span class="card-badge badge-{{ feed.category }}">{{ feed.category }}</span>
+        <a href="{{ feed.website_url }}" target="_blank" rel="noopener" class="btn-sm btn-outline">
+          Visit {{ feed.name }} →
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="source-intro-block">
+  <p>
+    <strong>{{ feed.name }}</strong> is one of the top AI publishers tracked by DeepTrendLab.
+    We aggregate every article from {{ feed.name }} alongside 49 other leading AI sources —
+    including OpenAI, Anthropic, Google DeepMind, MIT Technology Review, and more —
+    into a single, real-time feed updated every 2 hours.
+  </p>
+  <p>
+    Below are the most recent {{ feed.name }} articles in our index.
+    Each is enriched with editorial analysis from DeepTrendLab's team.
+    <a href="/">Browse all sources →</a>
+  </p>
+</div>
+
+<div class="main-layout">
+  <main>
+    <div class="articles-header">
+      <h2 class="articles-title">Latest from {{ feed.name }}</h2>
+      <span class="articles-count">{{ total }} articles</span>
+    </div>
+
+    {% if articles %}
+    <div class="articles-grid">
+      {% for article in articles %}
+      <article class="card" itemscope itemtype="https://schema.org/NewsArticle">
+        <meta itemprop="datePublished" content="{{ article.published }}" />
+        <meta itemprop="publisher" content="{{ feed.name }}" />
+        {% if article.image_url %}
+        <img class="card-image" src="{{ article.image_url }}" alt="{{ article.title }}"
+             loading="lazy" itemprop="image"
+             onerror="this.style.display='none'" />
+        {% else %}
+        <div class="card-image-placeholder">{{ article.logo }}</div>
+        {% endif %}
+        <div class="card-body">
+          <div class="card-source">
+            <span class="card-badge badge-{{ article.category }}">{{ article.logo }} {{ article.category }}</span>
+          </div>
+          <h3 class="card-title" itemprop="headline">
+            <a href="/article/{{ article.slug or article.uid }}" itemprop="url">{{ article.title }}</a>
+          </h3>
+          {% if article.summary %}
+          <p class="card-summary" itemprop="description">{{ article.summary | truncate_words(25) }}</p>
+          {% endif %}
+          {% if article.tags %}
+          {% set tag_list = article.tags | from_json | list %}
+          {% if tag_list %}
+          <div class="card-tags">
+            {% for t in tag_list[:3] %}
+            <a href="/tag/{{ t | urlencode }}" class="tag-chip">#{{ t }}</a>
+            {% endfor %}
+          </div>
+          {% endif %}
+          {% endif %}
+          <div class="card-footer">
+            <span class="card-time">🕐 {{ article.published | timeago }}</span>
+            <a href="/article/{{ article.slug or article.uid }}" class="btn-sm btn-primary">Read →</a>
+          </div>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <div class="icon">📭</div>
+      <p>No articles indexed yet from {{ feed.name }}. Check back after the next crawl.</p>
+    </div>
+    {% endif %}
+  </main>
+
+  <aside class="sidebar">
+    <div class="widget">
+      <div class="widget-header">🌐 About {{ feed.name }}</div>
+      <div class="widget-body">
+        <div class="info-row">
+          <span class="info-label">Category</span>
+          <a href="/?category={{ feed.category | urlencode }}">{{ feed.category }}</a>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Articles</span>
+          <span>{{ total }} indexed</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Source</span>
+          <a href="{{ feed.website_url }}" target="_blank" rel="noopener">Visit site →</a>
+        </div>
+      </div>
+    </div>
+    <div class="widget">
+      <div class="widget-header">📊 More Sources</div>
+      <div class="widget-body" style="display:flex; flex-direction:column; gap:8px;">
+        <a href="/sources" class="btn-sm btn-outline" style="justify-content:center;">All 50 Sources →</a>
+        <a href="/?category={{ feed.category | urlencode }}" class="btn-sm btn-outline" style="justify-content:center;">More {{ feed.category }} →</a>
+        <a href="/" class="btn-sm btn-outline" style="justify-content:center;">← Back to Feed</a>
+      </div>
+    </div>
+  </aside>
+</div>
+{% endblock %}

@@ -403,6 +403,14 @@ img { max-width: 100%; }
 @media (max-width: 600px) { .source-credit-inner { flex-direction: column; } .source-credit-actions { flex-direction: row; flex-wrap: wrap; } }
 
 /* ===== Sources page ===== */
+.source-hero { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 32px 24px; }
+.source-hero-inner { max-width: 860px; margin: 0 auto; display: flex; align-items: flex-start; gap: 20px; }
+.source-hero-logo { font-size: 3rem; flex-shrink: 0; }
+.source-hero-info h1 { font-size: 1.6rem; margin-bottom: 8px; }
+.source-hero-desc { color: var(--muted2); font-size: .9rem; margin-bottom: 12px; }
+.source-hero-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.source-intro-block { max-width: 860px; margin: 24px auto; padding: 0 24px; }
+.source-intro-block p { font-size: .92rem; color: var(--muted2); line-height: 1.7; margin-bottom: 10px; }
 .sources-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px,1fr)); gap: 16px; padding: 32px 24px; max-width: 1320px; margin: 0 auto; }
 .source-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; display: flex; flex-direction: column; gap: 10px; transition: all .2s; }
 .source-card:hover { border-color: rgba(99,102,241,.35); transform: translateY(-3px); }

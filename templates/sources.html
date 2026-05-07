@@ -1,16 +1,17 @@
 {% extends "base.html" %}
 
-{% block title %}AI Sources — AIFeed{% endblock %}
+{% block title %}Top 50 AI News Sources — DeepTrendLab{% endblock %}
+{% block description %}The 50 top AI news sources tracked by DeepTrendLab — including OpenAI, Anthropic, Google DeepMind, TechCrunch, MIT Technology Review, and more. Updated every 2 hours.{% endblock %}
 
 {% block content %}
 
 <div class="article-hero">
   <div class="article-hero-inner">
     <div class="hero-tag">📡 Data Sources</div>
-    <h1 style="margin-bottom:12px;">Top 50 AI Sources</h1>
+    <h1 style="margin-bottom:12px;">Top 50 AI News Sources</h1>
     <p style="color:var(--muted2);">
-      Every article on AIFeed is aggregated from these authoritative AI publishers,
-      research institutions, and newsletters.
+      Every article on DeepTrendLab is aggregated from these authoritative AI publishers,
+      research institutions, and newsletters — covering AI Labs, News, Research, Safety, Tools, and Business.
     </p>
   </div>
 </div>
@@ -45,7 +46,7 @@
         {{ feed.website_url | replace("https://","") | truncate(40) }}
       </a>
       <div style="display:flex; gap:8px; margin-top:4px;">
-        <a href="/?source={{ feed.name | urlencode }}" class="btn-sm btn-primary" style="flex:1; justify-content:center;">
+        <a href="/source/{{ feed.name | slugify }}" class="btn-sm btn-primary" style="flex:1; justify-content:center;">
           View Articles
         </a>
         <a href="{{ feed.website_url }}" target="_blank" rel="noopener" class="btn-sm btn-outline">
