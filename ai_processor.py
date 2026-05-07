@@ -98,12 +98,34 @@ ANALYSIS_SYSTEM = (
     "Never copy sentences from the source article. Synthesize, contextualize, and interpret."
 )
 
+# ---------------------------------------------------------------------------
+# Shared Claude CLI helper — replaces all direct Anthropic API calls
+# ---------------------------------------------------------------------------
+
+import subprocess as _subprocess
+import shutil as _shutil
+
+CLAUDE_CLI = _shutil.which("claude")  # None if not installed
+
+
+def _call_claude_cli(prompt: str, system: str = "", timeout: int = 60) -> str:
+    """Call the claude CLI and return the text output. Falls back to '' on error."""
+    if not CLAUDE_CLI:
+        return ""
+    cmd = [CLAUDE_CLI, "-p", prompt]
+    if system:
+        cmd += ["--append-system-prompt", system]
+    try:
+        result = _subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except Exception as exc:
+        log.debug("claude CLI error: %s", exc)
+    return ""
+
 
 def _call_claude_analysis(title: str, text: str, source_name: str, category: str) -> str:
-    """Generate a 2-3 paragraph editorial analysis for an article. Returns '' on failure."""
-    if not ANTHROPIC_API_KEY:
-        return ""
-
+    """Generate 5-6 paragraph editorial analysis. Uses CLI if available, else API."""
     snippet = (text or title)[:3000]
     prompt = (
         f'Article: "{title}" (from {source_name}, category: {category})\n\n'
@@ -118,27 +140,24 @@ def _call_claude_analysis(title: str, text: str, source_name: str, category: str
         'Use <p> tags for each paragraph. Do not copy sentences from the article. '
         'Be specific, analytical, and opinionated. Target 500-750 words total.'
     )
-
+    # Try CLI first (host environment), fall back to API (container environment)
+    if CLAUDE_CLI:
+        return _call_claude_cli(prompt, system=ANALYSIS_SYSTEM, timeout=60)
+    if not ANTHROPIC_API_KEY:
+        return ""
     try:
         resp = requests.post(
             "https://api.anthropic.com/v1/messages",
-            headers={
-                "x-api-key": ANTHROPIC_API_KEY,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
-            },
-            json={
-                "model": "claude-haiku-4-5-20251001",
-                "max_tokens": 1200,
-                "system": ANALYSIS_SYSTEM,
-                "messages": [{"role": "user", "content": prompt}],
-            },
+            headers={"x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01",
+                     "content-type": "application/json"},
+            json={"model": "claude-haiku-4-5-20251001", "max_tokens": 1200,
+                  "system": ANALYSIS_SYSTEM, "messages": [{"role": "user", "content": prompt}]},
             timeout=30,
         )
         resp.raise_for_status()
         return resp.json()["content"][0]["text"].strip()
     except Exception as exc:
-        log.debug("Claude analysis error for '%s': %s", title[:50], exc)
+        log.debug("Claude analysis API error for '%s': %s", title[:50], exc)
     return ""
 
 
@@ -1081,8 +1100,8 @@ _DIGEST_SYSTEM = (
 
 def generate_digest(period: str = "daily", site_url: str = "https://deeptrendlab.com") -> bool:
     """Generate a daily/weekly/monthly AI digest and insert it as an original article."""
-    if not ANTHROPIC_API_KEY:
-        log.warning("Digest skipped — no API key")
+    if not CLAUDE_CLI and not ANTHROPIC_API_KEY:
+        log.warning("Digest skipped — no claude CLI or API key")
         return False
 
     days = _DIGEST_DAYS.get(period, 1)
@@ -1149,25 +1168,30 @@ Write 4-6 sections grouping related stories by theme. Be opinionated and analyti
 The title format is critical for SEO — people search for 'AI news {date_label}' and 'latest AI developments {date_label}'."""
 
     try:
-        resp = requests.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={
-                "x-api-key": ANTHROPIC_API_KEY,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
-            },
-            json={
-                "model": "claude-haiku-4-5-20251001",
-                "max_tokens": 2000,
-                "system": _DIGEST_SYSTEM,
-                "messages": [{"role": "user", "content": prompt}],
-            },
-            timeout=60,
-        )
-        resp.raise_for_status()
-        raw = resp.json()["content"][0]["text"].strip()
+        if CLAUDE_CLI:
+            raw = _call_claude_cli(prompt, system=_DIGEST_SYSTEM, timeout=90)
+        elif ANTHROPIC_API_KEY:
+            resp = requests.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={"x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01",
+                         "content-type": "application/json"},
+                json={"model": "claude-haiku-4-5-20251001", "max_tokens": 2000,
+                      "system": _DIGEST_SYSTEM, "messages": [{"role": "user", "content": prompt}]},
+                timeout=60,
+            )
+            resp.raise_for_status()
+            raw = resp.json()["content"][0]["text"].strip()
+        else:
+            log.error("Digest generation failed — no claude CLI or API key")
+            return False
+        if not raw:
+            log.error("Digest generation failed (%s): empty response", period)
+            return False
         if raw.startswith("```"):
             raw = re.sub(r"^```[a-z]*\n?", "", raw).rstrip("`").strip()
+        match = re.search(r'\{.*\}', raw, re.DOTALL)
+        if match:
+            raw = match.group(0)
         data = json.loads(raw)
     except Exception as exc:
         log.error("Digest generation failed (%s): %s", period, exc)
@@ -1248,10 +1272,7 @@ The title format is critical for SEO — people search for 'AI news {date_label}
 # ---------------------------------------------------------------------------
 
 def _call_claude_tags(title: str, text: str, source_name: str) -> list[str]:
-    """Return up to 5 topic tags for an article. Returns [] on failure or missing API key."""
-    if not ANTHROPIC_API_KEY:
-        return []
-
+    """Return up to 5 topic tags. Uses CLI if available, else API."""
     snippet = (text or title)[:1500]
     prompt = (
         f'Article from {source_name}: "{title}"\n\n{snippet}\n\n'
@@ -1259,33 +1280,41 @@ def _call_claude_tags(title: str, text: str, source_name: str) -> list[str]:
         'Example: ["llm", "openai", "fine-tuning"]. JSON only, no other text.'
     )
 
+    def _parse_tags(raw):
+        if not raw:
+            return []
+        try:
+            if raw.startswith("```"):
+                raw = re.sub(r"^```[a-z]*\n?", "", raw).rstrip("`").strip()
+            match = re.search(r'\[.*?\]', raw, re.DOTALL)
+            if match:
+                raw = match.group(0)
+            result = json.loads(raw)
+            if isinstance(result, list):
+                return [str(t).lower().strip() for t in result if t][:5]
+        except Exception:
+            pass
+        return []
+
+    if CLAUDE_CLI:
+        return _parse_tags(_call_claude_cli(prompt, timeout=20))
+    if not ANTHROPIC_API_KEY:
+        return []
     try:
         resp = requests.post(
             "https://api.anthropic.com/v1/messages",
-            headers={
-                "x-api-key": ANTHROPIC_API_KEY,
-                "anthropic-version": "2023-06-01",
-                "anthropic-beta": "prompt-caching-2024-07-31",
-                "content-type": "application/json",
-            },
-            json={
-                "model": "claude-haiku-4-5-20251001",
-                "max_tokens": 80,
-                "system": [{"type": "text", "text": SYSTEM_PROMPT,
-                             "cache_control": {"type": "ephemeral"}}],
-                "messages": [{"role": "user", "content": prompt}],
-            },
+            headers={"x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01",
+                     "anthropic-beta": "prompt-caching-2024-07-31", "content-type": "application/json"},
+            json={"model": "claude-haiku-4-5-20251001", "max_tokens": 80,
+                  "system": [{"type": "text", "text": SYSTEM_PROMPT,
+                               "cache_control": {"type": "ephemeral"}}],
+                  "messages": [{"role": "user", "content": prompt}]},
             timeout=15,
         )
         resp.raise_for_status()
-        raw = resp.json()["content"][0]["text"].strip()
-        if raw.startswith("```"):
-            raw = re.sub(r"^```[a-z]*\n?", "", raw).rstrip("`").strip()
-        result = json.loads(raw)
-        if isinstance(result, list):
-            return [str(t).lower().strip() for t in result if t][:5]
+        return _parse_tags(resp.json()["content"][0]["text"].strip())
     except Exception as exc:
-        log.debug("Claude tags error for '%s': %s", title[:50], exc)
+        log.debug("Claude tags API error for '%s': %s", title[:50], exc)
     return []
 
 
