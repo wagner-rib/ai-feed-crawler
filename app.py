@@ -25,6 +25,18 @@ SITE_URL = os.environ.get("SITE_URL", "http://localhost:8080")
 INDEXNOW_KEY = os.environ.get("INDEXNOW_KEY", "")
 PER_PAGE = 24
 
+# Redirect non-www to www to match GSC registration and prevent duplicate content
+@app.before_request
+def redirect_to_www():
+    host = request.host.split(":")[0]  # strip port
+    # Only redirect for real domain names (not IPs or localhost)
+    if (host and not host.startswith("www.") and "localhost" not in host
+            and not host.replace(".", "").isdigit()):
+        # Use https always — Flask is behind an SSL-terminating proxy
+        scheme = request.headers.get("X-Forwarded-Proto", "https")
+        url = f"{scheme}://www.{request.host}{request.full_path.rstrip('?')}"
+        return redirect(url, 301)
+
 
 @app.template_filter("source_logo")
 def source_logo_filter(source_name: str) -> str:
@@ -302,9 +314,17 @@ def sitemap_index():
 def sitemap():
     db = get_db()
     articles = db.execute(
-        "SELECT uid, slug, published FROM articles ORDER BY published DESC LIMIT 5000"
+        """SELECT uid, slug, published, image_url, source_name
+           FROM articles ORDER BY published DESC LIMIT 5000"""
     ).fetchall()
-    xml = render_template("sitemap.xml", articles=articles, site_url=SITE_URL, categories=CATEGORIES)
+    top_tags = db.execute(
+        """SELECT DISTINCT value as tag FROM articles, json_each(articles.tags)
+           WHERE tags IS NOT NULL AND tags != '[]'
+           GROUP BY value ORDER BY COUNT(*) DESC LIMIT 100"""
+    ).fetchall()
+    now_date = datetime.now(timezone.utc).isoformat()[:10]
+    xml = render_template("sitemap.xml", articles=articles, site_url=SITE_URL,
+                          categories=CATEGORIES, top_tags=top_tags, now_date=now_date)
     return Response(xml, mimetype="application/xml")
 
 

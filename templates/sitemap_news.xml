@@ -6,7 +6,7 @@
     <loc>{{ site_url }}/article/{{ article.slug or article.uid }}</loc>
     <news:news>
       <news:publication>
-        <news:name>AIFeed</news:name>
+        <news:name>DeepTrendLab</news:name>
         <news:language>en</news:language>
       </news:publication>
       <news:publication_date>{{ article.published[:19] }}Z</news:publication_date>
