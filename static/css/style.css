@@ -378,6 +378,10 @@ img { max-width: 100%; }
 .curation-cta { text-align: center; padding: 36px 24px; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 24px; }
 .curation-cta-label { font-size: .88rem; color: var(--muted2); margin-bottom: 16px; }
 .curation-btn { display: inline-flex; font-size: 1rem; padding: 14px 28px; }
+.curation-read-original { margin-left: auto; font-size: .82rem; color: var(--accent2); white-space: nowrap; }
+.curation-analysis { margin-bottom: 36px; }
+.curation-section-heading { font-size: 1.1rem; font-weight: 700; color: var(--text); margin-bottom: 18px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+.curation-analysis p { font-family: 'Merriweather', Georgia, serif; font-size: 1.02rem; line-height: 1.82; color: #c8d8ec; margin-bottom: 1.3em; }
 .curation-disclaimer { font-size: .78rem; color: var(--muted); line-height: 1.6; }
 .curation-disclaimer a { color: var(--muted2); }
 

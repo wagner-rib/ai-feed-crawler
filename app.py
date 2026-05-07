@@ -16,7 +16,7 @@ import humanize
 
 from crawler import init_db, crawl_all, get_stats, DB_PATH, backfill_slugs
 from feeds_config import AI_FEEDS, CATEGORIES
-from ai_processor import init_db_v2, process_batch, tag_untagged_batch, generate_digest
+from ai_processor import init_db_v2, process_batch, tag_untagged_batch, generate_digest, backfill_analysis
 
 app = Flask(__name__)
 app.config["JSON_SORT_KEYS"] = False
@@ -484,6 +484,8 @@ def start_scheduler():
     scheduler.add_job(run_weekly_digest, "cron", day_of_week="sun", hour=9, minute=0, id="weekly_digest")
     # Monthly digest on 1st of each month at 10:00 UTC
     scheduler.add_job(run_monthly_digest, "cron", day=1, hour=10, minute=0, id="monthly_digest")
+    # Backfill editorial analysis for articles missing ai_digest — runs every hour
+    scheduler.add_job(lambda: backfill_analysis(limit=20), "interval", hours=1, id="backfill_analysis")
     scheduler.start()
     app.logger.info("Scheduler started — crawl every 2h, process every 30min")
 

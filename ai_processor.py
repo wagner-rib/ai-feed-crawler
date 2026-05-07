@@ -92,6 +92,52 @@ SYSTEM_PROMPT = (
     "Respond only with valid JSON — no markdown, no extra text."
 )
 
+ANALYSIS_SYSTEM = (
+    "You are a senior AI industry analyst writing for DeepTrendLab, an AI news aggregator. "
+    "Write sharp, original editorial analysis. No filler. No bullet lists — paragraphs only. "
+    "Never copy sentences from the source article. Synthesize, contextualize, and interpret."
+)
+
+
+def _call_claude_analysis(title: str, text: str, source_name: str, category: str) -> str:
+    """Generate a 2-3 paragraph editorial analysis for an article. Returns '' on failure."""
+    if not ANTHROPIC_API_KEY:
+        return ""
+
+    snippet = (text or title)[:3000]
+    prompt = (
+        f'Article: "{title}" (from {source_name}, category: {category})\n\n'
+        f'Content:\n{snippet}\n\n'
+        'Write a 2-3 paragraph editorial analysis for DeepTrendLab readers. Structure:\n'
+        '1. What happened and the key facts\n'
+        '2. Why this matters in the broader AI landscape\n'
+        '3. What to watch for / implications\n\n'
+        'Use <p> tags for each paragraph. Do not copy sentences from the article. '
+        'Be specific, analytical, and opinionated. Around 200-300 words total.'
+    )
+
+    try:
+        resp = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": ANTHROPIC_API_KEY,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": "claude-haiku-4-5-20251001",
+                "max_tokens": 600,
+                "system": ANALYSIS_SYSTEM,
+                "messages": [{"role": "user", "content": prompt}],
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        return resp.json()["content"][0]["text"].strip()
+    except Exception as exc:
+        log.debug("Claude analysis error for '%s': %s", title[:50], exc)
+    return ""
+
 
 # ---------------------------------------------------------------------------
 # DB migration
@@ -1329,6 +1375,15 @@ def process_article(uid: str) -> bool:
         plain_text or row["summary"] or "",
         row["source_name"],
     )
+
+    ai_analysis = ""
+    if row["source_name"] != "DeepTrendLab":
+        ai_analysis = _call_claude_analysis(
+            row["title"],
+            plain_text or row["summary"] or "",
+            row["source_name"],
+            row["category"],
+        )
     # Merge Claude tags with any existing tags (RSS tags), preserving existing if API fails
     existing_raw = row["tags"] if "tags" in row.keys() else None
     existing = json.loads(existing_raw) if existing_raw else []
@@ -1353,7 +1408,7 @@ def process_article(uid: str) -> bool:
             (
                 plain_text or None,
                 content_html or None,
-                None,
+                ai_analysis or None,
                 tags,
                 author,
                 _reading_time(plain_text),
@@ -1367,6 +1422,39 @@ def process_article(uid: str) -> bool:
              len((plain_text or "").split()),
              "✓" if content_html else "✗")
     return True
+
+
+def backfill_analysis(limit: int = 30) -> int:
+    """Generate ai_digest analysis for processed articles that don't have one yet."""
+    with get_db() as conn:
+        rows = conn.execute(
+            """SELECT uid, title, source_name, category, full_text, summary
+               FROM articles
+               WHERE processed = 2
+                 AND source_name != 'DeepTrendLab'
+                 AND (ai_digest IS NULL OR ai_digest = '')
+                 AND (full_text IS NOT NULL OR summary IS NOT NULL)
+               ORDER BY published DESC LIMIT ?""",
+            (limit,),
+        ).fetchall()
+
+    count = 0
+    for row in rows:
+        text = row["full_text"] or row["summary"] or ""
+        analysis = _call_claude_analysis(row["title"], text, row["source_name"], row["category"])
+        if analysis:
+            with get_db() as conn:
+                conn.execute(
+                    "UPDATE articles SET ai_digest = ? WHERE uid = ?",
+                    (analysis, row["uid"]),
+                )
+            count += 1
+            log.info("Backfilled analysis for: %s", row["title"][:60])
+        time.sleep(1.0)
+
+    if count:
+        log.info("Backfilled analysis for %d articles", count)
+    return count
 
 
 def process_batch(limit: int = 20, delay: float = 1.2) -> int:

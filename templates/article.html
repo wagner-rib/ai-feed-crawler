@@ -148,25 +148,30 @@
     {% endif %}
 
     {% else %}
-    <!-- Aggregated article — show curated summary and send to original source -->
+    <!-- Aggregated article — curation page with original editorial analysis -->
     <div class="curation-block">
       <div class="curation-source-bar">
         <span class="curation-logo">{{ article.logo }}</span>
         <span>Curated from <strong><a href="{{ article.source_url }}" target="_blank" rel="noopener">{{ article.source_name }}</a></strong></span>
+        <a href="{{ article.url }}" target="_blank" rel="noopener" class="curation-read-original">Read original →</a>
       </div>
 
-      {% set summary_text = article.summary or article.ai_digest %}
-      {% if summary_text %}
-      <div class="curation-summary" itemprop="description">
-        <h2 class="curation-summary-heading">Summary</h2>
-        {% for para in summary_text.split('\n\n') %}
+      {% if article.ai_digest %}
+      <div class="curation-analysis" itemprop="description">
+        <h2 class="curation-section-heading">DeepTrendLab's Take</h2>
+        {{ article.ai_digest | safe }}
+      </div>
+      {% elif article.summary %}
+      <div class="curation-analysis" itemprop="description">
+        <h2 class="curation-section-heading">Summary</h2>
+        {% for para in article.summary.split('\n\n') %}
           {% if para.strip() %}<p>{{ para.strip() }}</p>{% endif %}
         {% endfor %}
       </div>
       {% endif %}
 
       <div class="curation-cta">
-        <p class="curation-cta-label">Read the full article on {{ article.source_name }}</p>
+        <p class="curation-cta-label">This article was originally published on <strong>{{ article.source_name }}</strong>. Read the full piece at the source.</p>
         <a href="{{ article.url }}" target="_blank" rel="noopener" class="btn-lg curation-btn">
           Read full article on {{ article.source_name }} →
         </a>
@@ -175,6 +180,7 @@
       <p class="curation-disclaimer">
         DeepTrendLab curates AI news from 50+ sources. All original content and rights belong to
         <a href="{{ article.source_url }}" target="_blank" rel="noopener">{{ article.source_name }}</a>.
+        DeepTrendLab's analysis is independently written and does not represent the views of the original publisher.
       </p>
     </div>
     {% endif %}
