@@ -61,7 +61,7 @@ def get_conn():
 # ---------------------------------------------------------------------------
 
 def call_claude(prompt: str, system: str = "", timeout: int = 60) -> str:
-    cmd = [CLAUDE_CLI, "-p", prompt]
+    cmd = [CLAUDE_CLI, "-p", prompt, "--model", "claude-haiku-4-5-20251001"]
     if system:
         cmd += ["--append-system-prompt", system]
     try:
