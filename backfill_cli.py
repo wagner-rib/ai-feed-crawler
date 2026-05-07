@@ -1,5 +1,14 @@
 #!/usr/bin/env python3
-"""Backfill article analysis using the claude CLI instead of the Anthropic API."""
+"""
+Backfill article analysis using the claude CLI instead of the Anthropic API.
+
+WARNING: Only run this script when the Docker container is STOPPED.
+Running concurrently with the container will corrupt the SQLite database.
+
+  docker compose down
+  python3 backfill_cli.py
+  docker compose up -d
+"""
 
 import sqlite3
 import subprocess
