@@ -1062,13 +1062,22 @@ def generate_digest(period: str = "daily", site_url: str = "https://deeptrendlab
     now_dt = datetime.now(timezone.utc)
     if period == "daily":
         date_label = now_dt.strftime("%B %d, %Y")
+        date_slug  = now_dt.strftime("%B-%d-%Y").lower()
         period_label = "today"
+        title_prefix = f"AI News {date_label}"
+        title_example = f"AI News {date_label}: OpenAI, DeepMind, and What Actually Matters"
     elif period == "weekly":
         date_label = f"Week of {now_dt.strftime('%B %d, %Y')}"
+        date_slug  = f"week-of-{now_dt.strftime('%B-%d-%Y').lower()}"
         period_label = "this week"
+        title_prefix = f"Top AI Stories — {date_label}"
+        title_example = f"Top AI Stories — {date_label}: The Moves That Will Shape the Next Month"
     else:
         date_label = now_dt.strftime("%B %Y")
+        date_slug  = now_dt.strftime("%B-%Y").lower()
         period_label = "this month"
+        title_prefix = f"AI Developments {date_label}"
+        title_example = f"AI Developments {date_label}: A Month of Model Releases and Policy Shifts"
 
     prompt = f"""Here are the AI news articles published {period_label} ({len(rows)} articles):
 
@@ -1078,8 +1087,8 @@ Write a {period} AI digest editorial post for DeepTrendLab covering {date_label}
 
 Return a JSON object:
 {{
-  "title": "<compelling headline, include date>",
-  "summary": "<2 sentence summary for social sharing, max 200 chars>",
+  "title": "<SEO-optimized headline — MUST start with '{title_prefix}:' followed by a compelling hook. Example: '{title_example}'>",
+  "summary": "<2 sentence summary. MUST include the date '{date_label}' and mention 2-3 specific topics covered. Max 200 chars.>",
   "sections": [
     {{"heading": "<section heading>", "body": "<2-3 paragraph editorial, HTML <p> tags only>"}},
     ...
@@ -1087,7 +1096,8 @@ Return a JSON object:
   "tags": ["<tag1>", "<tag2>", "<tag3>", "<tag4>", "<tag5>"]
 }}
 
-Write 4-6 sections grouping related stories by theme. Be opinionated and analytical."""
+Write 4-6 sections grouping related stories by theme. Be opinionated and analytical.
+The title format is critical for SEO — people search for 'AI news {date_label}' and 'latest AI developments {date_label}'."""
 
     try:
         resp = requests.post(
@@ -1114,9 +1124,13 @@ Write 4-6 sections grouping related stories by theme. Be opinionated and analyti
         log.error("Digest generation failed (%s): %s", period, exc)
         return False
 
-    title   = data.get("title", f"AI {period.title()} Digest — {date_label}")
+    title   = data.get("title", f"AI News {date_label}: Top Stories from DeepTrendLab")
     summary = data.get("summary", "")
-    tags    = json.dumps(data.get("tags", [period, "digest", "ai news"]))
+    # Always inject date-based search keywords into tags
+    base_tags = data.get("tags", [])
+    date_tags = [f"ai news {date_label.lower()}", "ai news", "artificial intelligence news", period]
+    merged_tags = list(dict.fromkeys(date_tags + base_tags))[:8]
+    tags = json.dumps(merged_tags)
     sections = data.get("sections", [])
 
     # Build content HTML with internal links
@@ -1145,9 +1159,14 @@ Write 4-6 sections grouping related stories by theme. Be opinionated and analyti
 
     content_html = "\n".join(content_parts)
 
-    # Generate slug
+    # Generate slug matching common search queries: "ai-news-may-07-2026"
     from slugify import slugify as _slugify
-    slug_base = _slugify(f"ai-{period}-digest-{date_label}", max_length=70, word_boundary=True)
+    if period == "daily":
+        slug_base = _slugify(f"ai-news-{date_slug}", max_length=70, word_boundary=True)
+    elif period == "weekly":
+        slug_base = _slugify(f"top-ai-stories-{date_slug}", max_length=70, word_boundary=True)
+    else:
+        slug_base = _slugify(f"ai-developments-{date_slug}", max_length=70, word_boundary=True)
     uid = hashlib.md5(slug_base.encode()).hexdigest()[:16]
     art_url = f"{site_url}/article/{slug_base}"
 
