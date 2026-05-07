@@ -4,22 +4,27 @@
   {% set _page_title = '#' + tag + ' — AI News & Research · DeepTrendLab' %}
   {% set _page_desc = 'Latest AI news and research articles tagged #' + tag + ' — curated from the top 50 AI sources on DeepTrendLab.' %}
   {% set _canonical = site_url + '/tag/' + tag %}
+  {% set _robots = 'index, follow' %}
 {% elif selected_category %}
   {% set _page_title = selected_category + ' AI News & Research · DeepTrendLab' %}
   {% set _page_desc = 'Latest ' + selected_category + ' news and research from the top 50 AI sources — updated every 2 hours on DeepTrendLab.' %}
   {% set _canonical = site_url + '/?category=' + selected_category %}
+  {% set _robots = 'index, follow' %}
 {% elif selected_source %}
   {% set _page_title = selected_source + ' — Articles · DeepTrendLab' %}
   {% set _page_desc = 'All articles from ' + selected_source + ' aggregated on DeepTrendLab — AI news, research and announcements.' %}
   {% set _canonical = site_url + '/?source=' + selected_source %}
+  {% set _robots = 'noindex, follow' %}
 {% elif query %}
   {% set _page_title = 'Search: "' + query + '" · DeepTrendLab' %}
   {% set _page_desc = 'DeepTrendLab search results for "' + query + '" — AI news, research papers and tools from the top 50 sources.' %}
   {% set _canonical = site_url + '/?q=' + query %}
+  {% set _robots = 'noindex, follow' %}
 {% else %}
   {% set _page_title = 'DeepTrendLab | The Top 50 AI News & Research Sources Live' %}
   {% set _page_desc = 'Stay ahead of the AI curve. DeepTrendLab aggregates real-time news, research, and tools from 50 top AI labs and publishers including DeepMind, OpenAI, and Hugging Face.' %}
   {% set _canonical = site_url + '/' %}
+  {% set _robots = 'index, follow' %}
 {% endif %}
 
 {% block title %}{{ _page_title }}{% endblock %}
@@ -28,6 +33,7 @@
 {% block og_desc %}{{ _page_desc }}{% endblock %}
 {% block tw_title %}{{ _page_title }}{% endblock %}
 {% block tw_desc %}{{ _page_desc }}{% endblock %}
+{% block robots %}{{ _robots }}{% endblock %}
 {% block canonical %}{{ _canonical }}{% if page > 1 %}{% if '?' in _canonical %}&{% else %}?{% endif %}page={{ page }}{% endif %}{% endblock %}
 
 {% block pagination_links %}
