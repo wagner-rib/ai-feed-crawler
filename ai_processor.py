@@ -1427,9 +1427,19 @@ def process_article(uid: str) -> bool:
     return True
 
 
+def _get_db_direct():
+    """Open a direct SQLite connection with WAL mode and long timeout for backfill."""
+    conn = sqlite3.connect(str(DB_PATH), timeout=60, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=60000")
+    return conn
+
+
 def backfill_analysis(limit: int = 30, delay: float = 0.1) -> int:
     """Generate ai_digest analysis for processed articles that don't have one yet."""
-    with get_db() as conn:
+    conn = _get_db_direct()
+    try:
         rows = conn.execute(
             """SELECT uid, title, source_name, category, full_text, summary
                FROM articles
@@ -1440,17 +1450,23 @@ def backfill_analysis(limit: int = 30, delay: float = 0.1) -> int:
                ORDER BY published DESC LIMIT ?""",
             (limit,),
         ).fetchall()
+    finally:
+        conn.close()
 
     count = 0
     for row in rows:
         text = row["full_text"] or row["summary"] or ""
         analysis = _call_claude_analysis(row["title"], text, row["source_name"], row["category"])
         if analysis:
-            with get_db() as conn:
+            conn = _get_db_direct()
+            try:
                 conn.execute(
                     "UPDATE articles SET ai_digest = ? WHERE uid = ?",
                     (analysis, row["uid"]),
                 )
+                conn.commit()
+            finally:
+                conn.close()
             count += 1
             log.info("Backfilled analysis for: %s", row["title"][:60])
         if delay > 0:
