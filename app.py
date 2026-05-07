@@ -460,32 +460,15 @@ def do_crawl():
         do_process()
 
 
-def run_daily_digest():
-    generate_digest("daily", SITE_URL)
-
-def run_weekly_digest():
-    generate_digest("weekly", SITE_URL)
-
-def run_monthly_digest():
-    generate_digest("monthly", SITE_URL)
-
-
 def start_scheduler():
     scheduler = BackgroundScheduler(daemon=True)
     # Crawl every 2 hours
     scheduler.add_job(do_crawl, "interval", hours=2,
                       id="crawl", next_run_time=datetime.now())
-    # Process every 30 minutes — catches new articles quickly
+    # Process every 30 minutes — fetches article content, marks processed=2
+    # AI enrichment (tags, analysis, digests) is handled by ai_watcher.py on the host
     scheduler.add_job(do_process, "interval", minutes=30,
                       id="process", next_run_time=datetime.now())
-    # Daily digest at 08:00 UTC
-    scheduler.add_job(run_daily_digest, "cron", hour=8, minute=0, id="daily_digest")
-    # Weekly digest every Sunday at 09:00 UTC
-    scheduler.add_job(run_weekly_digest, "cron", day_of_week="sun", hour=9, minute=0, id="weekly_digest")
-    # Monthly digest on 1st of each month at 10:00 UTC
-    scheduler.add_job(run_monthly_digest, "cron", day=1, hour=10, minute=0, id="monthly_digest")
-    # Backfill editorial analysis for articles missing ai_digest — runs every hour
-    scheduler.add_job(lambda: backfill_analysis(limit=20), "interval", hours=1, id="backfill_analysis")
     scheduler.start()
     app.logger.info("Scheduler started — crawl every 2h, process every 30min")
 

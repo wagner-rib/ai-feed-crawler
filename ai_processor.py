@@ -1402,28 +1402,10 @@ def process_article(uid: str) -> bool:
     author       = data["author"] or ""
     image        = data["image"] or row["image_url"]
 
-    new_tags = _call_claude_tags(
-        row["title"],
-        plain_text or row["summary"] or "",
-        row["source_name"],
-    )
-
-    ai_analysis = ""
-    if row["source_name"] != "DeepTrendLab":
-        ai_analysis = _call_claude_analysis(
-            row["title"],
-            plain_text or row["summary"] or "",
-            row["source_name"],
-            row["category"],
-        )
-    # Merge Claude tags with any existing tags (RSS tags), preserving existing if API fails
+    # Tags and analysis are handled by ai_watcher.py on the host via claude CLI.
+    # Keep existing RSS tags; ai_digest will be filled by the watcher.
     existing_raw = row["tags"] if "tags" in row.keys() else None
-    existing = json.loads(existing_raw) if existing_raw else []
-    if new_tags:
-        merged = list(dict.fromkeys(new_tags + [t for t in existing if t not in new_tags]))
-        tags = json.dumps(merged[:8])
-    else:
-        tags = existing_raw or json.dumps([])
+    tags = existing_raw or json.dumps([])
 
     with get_db() as conn:
         conn.execute(
@@ -1440,7 +1422,7 @@ def process_article(uid: str) -> bool:
             (
                 plain_text or None,
                 content_html or None,
-                ai_analysis or None,
+                None,
                 tags,
                 author,
                 _reading_time(plain_text),
