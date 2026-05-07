@@ -26,7 +26,7 @@ DB_PATH = "/var/lib/containers/storage/volumes/ai-feed-crawler_aifeed_data/_data
 CLAUDE_CLI = "claude"
 POLL_INTERVAL = 300  # seconds between scans (5 min fallback)
 SIGNAL_FILE   = "/var/lib/containers/storage/volumes/ai-feed-crawler_aifeed_data/_data/.process_done"
-BATCH_SIZE    = 5    # articles to process per cycle (keeps writes short)
+BATCH_SIZE    = 20   # articles to process per cycle
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("ai_watcher")
@@ -353,35 +353,32 @@ def main():
         sys.exit(0)
 
     # Continuous watcher mode
-    log.info("AI watcher started — triggered by container signal + %ds fallback poll", POLL_INTERVAL)
+    log.info("AI watcher started — continuous backfill mode + %ds idle poll", POLL_INTERVAL)
     last_daily  = None
     last_weekly = None
-    last_poll   = 0
 
     import os
     while True:
         try:
             now = datetime.now(timezone.utc)
-            triggered = os.path.exists(SIGNAL_FILE)
-            due_for_poll = (time.time() - last_poll) >= POLL_INTERVAL
 
-            if triggered or due_for_poll:
-                if triggered:
-                    os.remove(SIGNAL_FILE)
-                    log.info("Signal received — processing new articles")
+            # Clear signal file if present
+            if os.path.exists(SIGNAL_FILE):
+                os.remove(SIGNAL_FILE)
 
-                n = process_pending()
-                if n:
-                    log.info("Processed %d articles", n)
-                last_poll = time.time()
+            # Process a batch — if there are pending articles, loop immediately
+            n = process_pending()
+            if n:
+                log.info("Processed %d articles", n)
+                # More pending? Go straight back without sleeping
+                continue
 
-            # Daily digest at 08:00 UTC
+            # Nothing pending — check digests then idle
             if now.hour == 8 and (last_daily is None or last_daily.date() < now.date()):
                 log.info("Triggering daily digest...")
                 if generate_digest("daily"):
                     last_daily = now
 
-            # Weekly digest on Sunday at 09:00 UTC
             if now.weekday() == 6 and now.hour == 9 and \
                (last_weekly is None or (now - last_weekly).days >= 6):
                 log.info("Triggering weekly digest...")
@@ -391,7 +388,7 @@ def main():
         except Exception as e:
             log.error("Watcher error: %s", e)
 
-        time.sleep(10)  # tight loop checking signal file only
+        time.sleep(POLL_INTERVAL)  # idle when nothing to process
 
 
 if __name__ == "__main__":
