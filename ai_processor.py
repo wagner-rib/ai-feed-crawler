@@ -1428,10 +1428,9 @@ def process_article(uid: str) -> bool:
 
 
 def _get_db_direct():
-    """Open a direct SQLite connection with WAL mode and long timeout for backfill."""
+    """Open a direct SQLite connection with long timeout for backfill."""
     conn = sqlite3.connect(str(DB_PATH), timeout=60, check_same_thread=False)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA busy_timeout=60000")
     return conn
 
