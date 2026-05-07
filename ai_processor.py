@@ -108,12 +108,15 @@ def _call_claude_analysis(title: str, text: str, source_name: str, category: str
     prompt = (
         f'Article: "{title}" (from {source_name}, category: {category})\n\n'
         f'Content:\n{snippet}\n\n'
-        'Write a 2-3 paragraph editorial analysis for DeepTrendLab readers. Structure:\n'
-        '1. What happened and the key facts\n'
-        '2. Why this matters in the broader AI landscape\n'
-        '3. What to watch for / implications\n\n'
+        'Write a 5-6 paragraph editorial analysis for DeepTrendLab readers. Structure:\n'
+        '1. What happened — the key facts and announcement details\n'
+        '2. Background and context — why this moment, what led here\n'
+        '3. Why this matters — significance in the broader AI landscape, context vs competitors\n'
+        '4. Who it affects — impact on developers, enterprises, researchers, or consumers\n'
+        '5. Competitive angle — how this shifts the landscape vs rivals\n'
+        '6. What to watch — implications, open questions, what comes next\n\n'
         'Use <p> tags for each paragraph. Do not copy sentences from the article. '
-        'Be specific, analytical, and opinionated. Around 200-300 words total.'
+        'Be specific, analytical, and opinionated. Target 500-750 words total.'
     )
 
     try:
@@ -126,7 +129,7 @@ def _call_claude_analysis(title: str, text: str, source_name: str, category: str
             },
             json={
                 "model": "claude-haiku-4-5-20251001",
-                "max_tokens": 600,
+                "max_tokens": 1200,
                 "system": ANALYSIS_SYSTEM,
                 "messages": [{"role": "user", "content": prompt}],
             },
@@ -1424,7 +1427,7 @@ def process_article(uid: str) -> bool:
     return True
 
 
-def backfill_analysis(limit: int = 30) -> int:
+def backfill_analysis(limit: int = 30, delay: float = 0.1) -> int:
     """Generate ai_digest analysis for processed articles that don't have one yet."""
     with get_db() as conn:
         rows = conn.execute(
@@ -1450,7 +1453,8 @@ def backfill_analysis(limit: int = 30) -> int:
                 )
             count += 1
             log.info("Backfilled analysis for: %s", row["title"][:60])
-        time.sleep(1.0)
+        if delay > 0:
+            time.sleep(delay)
 
     if count:
         log.info("Backfilled analysis for %d articles", count)
